@@ -6157,7 +6157,8 @@ proc ::potato::grid_with_scrollbars {widget x y} {
 #: return nothing
 proc ::potato::center {win} {
 
-	update
+	# Geometry requires idle layout work, not socket/timer callbacks.
+	update idletasks
 	if { ![winfo exists $win] } {
 		return;
 	}

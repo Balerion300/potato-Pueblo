@@ -36,11 +36,18 @@ proc assert {value message} {
     if {![uplevel 1 [list expr $value]]} {error "FAIL: $message"}
     incr ::checks
 }
+# A bounded turn of the real event loop. Aqua can keep update busy while a
+# connected socket is active; a timer/vwait gives the assertions a chance to run.
+proc testPump {} {
+    set tick [after 10 {set ::testTick 1}]
+    vwait ::testTick
+    unset ::testTick
+}
 proc waitFor {expression} {
     set limit [expr {[clock milliseconds]+5000}]
     while {![uplevel 1 [list expr $expression]]} {
         if {[clock milliseconds]>$limit} {error "Timeout: $expression"}
-        after 10; update
+        testPump
     }
 }
 assert {$::potato::running == 1} "full client startup"
@@ -92,7 +99,7 @@ foreach tag [$t tag names] {
 assert {$actionTag ne ""} "explicit action attached"
 set range [$t tag ranges $actionTag]
 $t see [lindex $range 0]
-update
+testPump
 lassign [$t bbox [lindex $range 0]] x y width height
 event generate $t <Motion> -x [expr {$x+2}] -y [expr {$y+2}]
 event generate $t <ButtonPress-1> -x [expr {$x+2}] -y [expr {$y+2}]
@@ -147,7 +154,7 @@ foreach tag [$t tag names $imageName] {
 }
 assert {$imageAction ne ""} "image inherits command link"
 $t see $imageName
-update
+testPump
 lassign [$t bbox $imageName] x y width height
 event generate $t <Motion> -x [expr {$x+5}] -y [expr {$y+5}]
 event generate $t <ButtonPress-1> -x [expr {$x+5}] -y [expr {$y+5}]
@@ -157,7 +164,7 @@ assert {[lsearch -exact $::wire portrait]>=0} "native image command click"
 assert {[string first Portrait [$t get 1.0 end]]>=0} "full-client copy fallback"
 if {[info exists ::env(POTATO_TEST_SCREENSHOT)]} {
     # The Python adapter supplies this command only for diagnostic captures.
-    update
+    testPump
     captureScreenshot $::env(POTATO_TEST_SCREENSHOT)
 }
 rename ::potato::pueblo::url {}
@@ -166,11 +173,11 @@ close $httpServer
 set ::potato::conn($c,spawnAll) {}
 ::potato::pueblo::reset $c
 ::potato::pueblo::activate {*}[lrange $actionTag 1 end]
-after 30; update
+testPump
 assert {[llength [lsearch -all -exact $::wire look]]==1} "stale click after reset"
 puts "CHECK: image command clicked"; flush stdout
 ::potato::configureWorld $w
-update
+testPump
 assert {[llength [info commands ::potato::pueblo::parse]]==1} "configuration remains usable"
 set ::potato::world($w,temp) 0
 ::potato::saveWorlds
