@@ -22,6 +22,8 @@ lappend ::auto_path [file join $root potato.vfs lib]
 source [file join $root potato.vfs main.tcl]
 interp bgerror {} testBackgroundError
 puts "CHECK: complete client started"
+puts "CAPABILITY: game TLS available=$::potato::potato(hasTLS)"
+if {$::potato::potato(hasTLS)} {puts "CAPABILITY: TclTLS [package present tls], [::tls::version]"}
 set ::checks 0
 proc testTimeout {} {
     puts stderr "FAIL: full-client fixture exceeded 15 seconds"
