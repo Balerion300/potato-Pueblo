@@ -5,6 +5,9 @@ import platform
 import subprocess
 import tempfile
 import zipfile
+import sys
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "tests"))
+from fixture_server import Fixture
 
 root = pathlib.Path(__file__).resolve().parents[1]
 archive = next((root / "artifacts").glob("Potato-Pueblo-Preview-*.zip"))
@@ -43,7 +46,9 @@ with tempfile.TemporaryDirectory(prefix="potato-extracted-preview-") as extracte
     hidden_runtime = root / ".build/runtime-not-for-package-tests"
     build_runtime.rename(hidden_runtime)
     try:
-        subprocess.run(command, env=env, cwd=package, check=True, timeout=60)
+        with Fixture() as fixture:
+            env.update(fixture.environment())
+            subprocess.run(command, env=env, cwd=package, check=True, timeout=60)
     finally:
         hidden_runtime.rename(build_runtime)
 print("PASS: extracted packaged client, isolated profile, build runtime unavailable")

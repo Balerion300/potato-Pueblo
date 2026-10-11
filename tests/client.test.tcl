@@ -62,8 +62,15 @@ proc accept {channel address port} {
 proc receive {channel} {
     while {[gets $channel line]>=0} {lappend ::wire $line}
 }
-set server [socket -server accept -myaddr 127.0.0.1 0]
-set port [lindex [fconfigure $server -sockname] end]
+if {[info exists ::env(POTATO_FIXTURE_GAME_PORT)]} {
+    set port $::env(POTATO_FIXTURE_GAME_PORT)
+    set ::peer [socket 127.0.0.1 $::env(POTATO_FIXTURE_CONTROL_PORT)]
+    fconfigure $::peer -translation crlf -blocking 0 -buffering line
+    fileevent $::peer readable [list receive $::peer]
+} else {
+    set server [socket -server accept -myaddr 127.0.0.1 0]
+    set port [lindex [fconfigure $server -sockname] end]
+}
 set connectionDeadline [after 10000 {puts stderr "FAIL: local connection did not complete in 10 seconds"; exit 1}]
 set w [::potato::addNewWorld Fixture 127.0.0.1 $port 1]
 foreach key {enabled commands images} {set ::potato::world($w,pueblo,$key) 1}
@@ -135,9 +142,13 @@ proc httpReply {channel} {
     puts -nonewline $channel "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: [string length $::fixturePNG]\r\nConnection: close\r\n\r\n$::fixturePNG"
     close $channel
 }
-set httpServer [socket -server httpAccept -myaddr 127.0.0.1 0]
-set httpPort [lindex [fconfigure $httpServer -sockname] end]
-set ::fixtureURL "http://127.0.0.1:$httpPort/pic.png"
+if {[info exists ::env(POTATO_FIXTURE_HTTP_URL)]} {
+    set ::fixtureURL $::env(POTATO_FIXTURE_HTTP_URL)
+} else {
+    set httpServer [socket -server httpAccept -myaddr 127.0.0.1 0]
+    set httpPort [lindex [fconfigure $httpServer -sockname] end]
+    set ::fixtureURL "http://127.0.0.1:$httpPort/pic.png"
+}
 rename ::potato::pueblo::url ::potato::pueblo::productionURL
 proc ::potato::pueblo::url {value} {return [expr {$value eq $::fixtureURL || [productionURL $value]}]}
 set ::potato::conn($c,spawnAll) {Images}
@@ -169,7 +180,7 @@ if {[info exists ::env(POTATO_TEST_SCREENSHOT)]} {
 }
 rename ::potato::pueblo::url {}
 rename ::potato::pueblo::productionURL ::potato::pueblo::url
-close $httpServer
+if {[info exists httpServer]} {close $httpServer}
 set ::potato::conn($c,spawnAll) {}
 ::potato::pueblo::reset $c
 ::potato::pueblo::activate {*}[lrange $actionTag 1 end]
@@ -186,7 +197,7 @@ set saved [read $f]; close $f
 assert {[string first {pueblo,enabled} $saved]>=0} "saved per-world Pueblo setting"
 ::potato::disconnect $c 0
 close $::peer
-close $server
+if {[info exists server]} {close $server}
 puts "PASS: $::checks full-client checks (Tcl [info patchlevel], Tk [package present Tk], [tk windowingsystem])"
 after cancel $testDeadline
 destroy .
