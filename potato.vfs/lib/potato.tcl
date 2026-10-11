@@ -3041,7 +3041,7 @@ proc ::potato::connect {c first} {
 			# The '1' below used to be checking for TLS >= 1.6, but I don't recall what changed between 1.5 and 1.6
 			# to necessitate it. Since we now require at least 1.6.7, it's left in like this, with those note so I
 			# remember to look it up later.
-			if { [catch {::tls::import $fid -command ::potato::connectVerifySSL -request 0 -cipher "ALL" -ssl2 0 -ssl3 0 -tls1 0 -tls1.1 0 -tls1.2 1 -servername $host} import] || \
+			if { [catch {::tls::import $fid -command ::potato::connectVerifySSL -request 0 -require 0 -cipher "ALL" -ssl2 0 -ssl3 0 -tls1 0 -tls1.1 0 -tls1.2 1 -servername $host} import] || \
 				(1 && [catch {fconfigure $fid -blocking 0 -buffering none} fconfig]) || \
 				[catch {::tls::handshake $fid} handshake] } {
 				set sslError "Unknown SSL Error";# do not translate

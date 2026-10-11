@@ -46,7 +46,8 @@ for path in (root / "README.md", root / "docs" / "PUEBLO.md"):
 (destination / "BUILD.json").write_text(json.dumps(dict(
     preview=True, commit=subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
     runtime="Tcl/Tk 8.6.18", system=system, architecture=arch, tested_platform=describe(),
-    tcl="515167c897a7c8066abfbd71e8fe7bd8bf3569de", tk="6dbe68819aac4a22f6f7a143133ce26c5e8d2b05"), indent=2))
+    tcl="515167c897a7c8066abfbd71e8fe7bd8bf3569de", tk="6dbe68819aac4a22f6f7a143133ce26c5e8d2b05",
+    tls=(runtime / "TLS-BUILD.txt").read_text() if (runtime / "TLS-BUILD.txt").exists() else "legacy bundled TclTLS"), indent=2))
 if system == "Darwin":
     subprocess.run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(destination), str(out / (name + ".zip"))], check=True)
 else:

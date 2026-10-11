@@ -37,6 +37,27 @@ jobs:
         with:
           path: .build/runtime
           key: potato-static-8.6.18-${{ matrix.os }}-${{ runner.arch }}-v2
+      - uses: actions/cache/restore@v4
+        id: tls
+        with:
+          path: |
+            .build/runtime/lib/tls2.0.1
+            .build/runtime/TclTLS-LICENSE.txt
+            .build/runtime/OpenSSL-LICENSE.txt
+            .build/runtime/TLS-BUILD.txt
+          key: potato-tls-2.0.1-openssl-3.5.9-${{ matrix.os }}-${{ runner.arch }}-v1
+      - name: Build portable TclTLS and static OpenSSL
+        if: steps.tls.outputs.cache-hit != 'true'
+        run: bash scripts/build-tls.sh
+      - uses: actions/cache/save@v4
+        if: steps.tls.outputs.cache-hit != 'true'
+        with:
+          path: |
+            .build/runtime/lib/tls2.0.1
+            .build/runtime/TclTLS-LICENSE.txt
+            .build/runtime/OpenSSL-LICENSE.txt
+            .build/runtime/TLS-BUILD.txt
+          key: potato-tls-2.0.1-openssl-3.5.9-${{ matrix.os }}-${{ runner.arch }}-v1
       - name: Native parser, images and complete client checks
         timeout-minutes: 2
         shell: bash
@@ -52,6 +73,7 @@ jobs:
             .build/runtime/bin/wish8.6 tests/run.tcl tests/client.test.tcl
           fi
       - name: Package native preview
+        # SSL is tested again after extraction, without the build runtime.
         run: python3 scripts/package-preview.py
       - name: Check relocated packaged client
         timeout-minutes: 2

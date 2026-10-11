@@ -37,6 +37,10 @@ with tempfile.TemporaryDirectory(prefix="potato-extracted-preview-") as extracte
         with Fixture() as fixture:
             env.update(fixture.environment())
             subprocess.run(command, env=env, cwd=package, check=True, timeout=60)
+        with tempfile.TemporaryDirectory(prefix="potato-package-ssl-") as ssl_profile:
+            env["POTATO_HOME"] = ssl_profile
+            subprocess.run([str(executable), str(root / "tests/run.tcl"), str(root / "tests/ssl.test.tcl")],
+                           env=env, cwd=package, check=True, timeout=60)
     finally:
         hidden_runtime.rename(build_runtime)
 print("PASS: extracted packaged client, isolated profile, build runtime unavailable")
