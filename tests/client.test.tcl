@@ -8,6 +8,7 @@ interp bgerror {} testBackgroundError
 rename tk_messageBox nativeMessageBox
 proc tk_messageBox {args} {error "Unexpected modal dialog: $args"}
 set root [file normalize [file join [file dirname [info script]] ..]]
+if {[info exists ::env(POTATO_TEST_SOURCE_ROOT)]} {set root $::env(POTATO_TEST_SOURCE_ROOT)}
 if {![info exists ::env(POTATO_HOME)]} {error "Set POTATO_HOME to a fresh test directory"}
 file mkdir $::env(POTATO_HOME)
 if {[llength [glob -nocomplain -directory $::env(POTATO_HOME) *]]} {error "Test profile must be empty"}
@@ -19,6 +20,7 @@ close $file
 set ::argv {}; set ::argc 0
 lappend ::auto_path [file join $root potato.vfs lib]
 source [file join $root potato.vfs main.tcl]
+interp bgerror {} testBackgroundError
 puts "CHECK: complete client started"
 set ::checks 0
 proc assert {value message} {

@@ -31,13 +31,14 @@ if system == "Darwin":
                  LSMinimumSystemVersion="13.0")
     (contents / "Info.plist").write_bytes(plistlib.dumps(plist))
     launcher = binaries / "Potato-Pueblo"
+    shutil.copy2(runtime / "bin" / "wish8.6", binaries / "Wish")
     launcher.write_text('''#!/bin/sh
 set -eu
 resources="$(cd "$(dirname "$0")/../Resources" && pwd)"
 export TCL_LIBRARY="$resources/runtime/lib/tcl8.6"
 export TK_LIBRARY="$resources/runtime/lib/tk8.6"
 export POTATO_HOME="${POTATO_HOME:-$HOME/Library/Application Support/Potato-Pueblo-Preview}"
-exec "$resources/runtime/bin/wish8.6" "$resources/potato.vfs/main.tcl" "$@"
+exec "$(dirname "$0")/Wish" "$resources/potato.vfs/main.tcl" "$@"
 ''')
     launcher.chmod(0o755)
 else:

@@ -18,10 +18,11 @@ esac
 cd "$build_root/tcl/$configure_dir"
 ./configure --prefix="$runtime_root" --disable-shared --enable-threads
 make -j4
-make install
+make install-binaries install-libraries install-headers
+if [ "$configure_dir" = unix ]; then make install-msgs install-tzdata; fi
 cd "$build_root/tk/$configure_dir"
 ./configure --prefix="$runtime_root" --disable-shared --with-tcl="$runtime_root/lib" "${tk_options[@]}"
 make -j4
-make install
+make install-binaries install-libraries
 cp "$build_root/tcl/license.terms" "$runtime_root/Tcl-LICENSE.txt"
 cp "$build_root/tk/license.terms" "$runtime_root/Tk-LICENSE.txt"

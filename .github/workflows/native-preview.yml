@@ -20,8 +20,19 @@ jobs:
       - name: Linux build dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libx11-dev libxft-dev libxss-dev libfontconfig1-dev xvfb
+      - uses: actions/cache/restore@v4
+        id: runtime
+        with:
+          path: .build/runtime
+          key: potato-static-8.6.18-${{ runner.os }}-${{ runner.arch }}-v1
       - name: Build pinned Tcl/Tk 8.6.18
+        if: steps.runtime.outputs.cache-hit != 'true'
         run: bash scripts/build-runtime.sh
+      - uses: actions/cache/save@v4
+        if: steps.runtime.outputs.cache-hit != 'true'
+        with:
+          path: .build/runtime
+          key: potato-static-8.6.18-${{ runner.os }}-${{ runner.arch }}-v1
       - name: Native parser, images and complete client checks
         timeout-minutes: 2
         shell: bash
@@ -38,6 +49,14 @@ jobs:
           fi
       - name: Package native preview
         run: python3 scripts/package-preview.py
+      - name: Check relocated packaged client
+        timeout-minutes: 2
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run -a python3 scripts/verify-package.py
+          else
+            python3 scripts/verify-package.py
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: Potato-Pueblo-${{ matrix.os }}
@@ -53,9 +72,20 @@ jobs:
           update: true
           install: >-
             git make mingw-w64-x86_64-gcc mingw-w64-x86_64-python
+      - uses: actions/cache/restore@v4
+        id: runtime
+        with:
+          path: .build/runtime
+          key: potato-static-8.6.18-${{ runner.os }}-${{ runner.arch }}-v1
       - name: Build pinned Tcl/Tk 8.6.18
+        if: steps.runtime.outputs.cache-hit != 'true'
         shell: msys2 {0}
         run: bash scripts/build-runtime.sh
+      - uses: actions/cache/save@v4
+        if: steps.runtime.outputs.cache-hit != 'true'
+        with:
+          path: .build/runtime
+          key: potato-static-8.6.18-${{ runner.os }}-${{ runner.arch }}-v1
       - name: Native parser, images and complete client checks
         timeout-minutes: 2
         shell: msys2 {0}
@@ -68,6 +98,10 @@ jobs:
       - name: Package native preview
         shell: msys2 {0}
         run: python scripts/package-preview.py
+      - name: Check relocated packaged client
+        timeout-minutes: 2
+        shell: msys2 {0}
+        run: python scripts/verify-package.py
       - uses: actions/upload-artifact@v4
         with:
           name: Potato-Pueblo-Windows
