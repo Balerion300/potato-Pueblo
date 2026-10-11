@@ -23,6 +23,15 @@ source [file join $root potato.vfs main.tcl]
 interp bgerror {} testBackgroundError
 puts "CHECK: complete client started"
 set ::checks 0
+proc testTimeout {} {
+    puts stderr "FAIL: full-client fixture exceeded 15 seconds"
+    for {set depth 1} {$depth < 30} {incr depth} {
+        if {[catch {info frame -$depth} frame]} {break}
+        puts stderr "FRAME: $frame"
+    }
+    exit 1
+}
+set testDeadline [after 15000 testTimeout]
 proc assert {value message} {
     if {![uplevel 1 [list expr $value]]} {error "FAIL: $message"}
     incr ::checks
@@ -54,11 +63,12 @@ foreach key {enabled commands images} {set ::potato::world($w,pueblo,$key) 1}
 set ::potato::world($w,spawnAll) {}
 ::potato::newConnection $w
 after cancel $connectionDeadline
-puts "CHECK: local connection opened"
+puts "CHECK: local connection opened"; flush stdout
 set c $::potato::potato(up)
 waitFor {[lsearch -exact $::wire {PUEBLOCLIENT 1.10}]>=0}
 waitFor {[dict get $::potato::pueblo::state($c) active]}
 set t $::potato::conn($c,textWidget)
+puts "CHECK: Pueblo negotiated"; flush stdout
 assert {$::potato::conn($c,connected)==1} "loopback connection"
 set ::heightEventRan 0
 set heightEvent [after 0 {set ::heightEventRan 1}]
@@ -89,6 +99,7 @@ event generate $t <ButtonPress-1> -x [expr {$x+2}] -y [expr {$y+2}]
 event generate $t <ButtonRelease-1> -x [expr {$x+2}] -y [expr {$y+2}]
 waitFor {[lsearch -exact $::wire look]>=0}
 assert {[lsearch -exact $::wire look]>=0} "native Tk mouse command delivery"
+puts "CHECK: text command clicked"; flush stdout
 # Triggers see the caption, not protocol tags or image pixels.
 set ::potato::world($w,events) {1}
 foreach {key value} {enabled 1 inactive {} matchAll 0 case 1 matchtype regexp pattern {^Trigger caption$} fg {} bg {} input,window 0 send {} replace 0 continue 0 spawn 0 omit 1 noActivity 0 log 0} {
@@ -99,6 +110,7 @@ puts $::peer {Trigger done}
 waitFor {[string first "Trigger done" [$t get 1.0 end]]>=0}
 assert {[string first "Trigger caption" [$t get 1.0 end]]<0} "caption trigger gag"
 set ::potato::world($w,events) {}
+puts "CHECK: caption trigger processed"; flush stdout
 # Exercise real image arrival in both main and spawn transcripts using only a
 # local HTTP fixture. The production URL validator is restored immediately.
 set photo [image create photo -width 300 -height 150]
@@ -127,6 +139,7 @@ puts $::peer "<a xch_cmd=\"true\" href=\"portrait\"><img src=\"$::fixtureURL\" a
 waitFor {[llength [$t image names]]==1 && [llength [$spawn image names]]==1}
 assert {[llength [$t image names]]==1} "main transcript asynchronous image"
 assert {[llength [$spawn image names]]==1} "spawn transcript asynchronous image"
+puts "CHECK: main and spawn images loaded"; flush stdout
 set imageName [lindex [$t image names] 0]
 set imageAction ""
 foreach tag [$t tag names $imageName] {
@@ -155,6 +168,7 @@ set ::potato::conn($c,spawnAll) {}
 ::potato::pueblo::activate {*}[lrange $actionTag 1 end]
 after 30; update
 assert {[llength [lsearch -all -exact $::wire look]]==1} "stale click after reset"
+puts "CHECK: image command clicked"; flush stdout
 ::potato::configureWorld $w
 update
 assert {[llength [info commands ::potato::pueblo::parse]]==1} "configuration remains usable"
@@ -167,4 +181,5 @@ assert {[string first {pueblo,enabled} $saved]>=0} "saved per-world Pueblo setti
 close $::peer
 close $server
 puts "PASS: $::checks full-client checks (Tcl [info patchlevel], Tk [package present Tk], [tk windowingsystem])"
+after cancel $testDeadline
 destroy .
