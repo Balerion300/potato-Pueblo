@@ -157,11 +157,12 @@ result = dict(build=identity, status="PASS", startup_trials=5, working_source=ar
               peak_download_children=max(len(s["children"]) for s in samples),
               resources=resources, total_hot_paths=total_hot,
               allocations=[r for r in text.splitlines() if r.startswith("ALLOCATED\t")],
+              image_resizes=[r for r in text.splitlines() if r.startswith("RESIZED\t")],
               cleanup=[r for r in text.splitlines() if r.startswith(("CLEAN\t", "SOAK\t", "IMAGES\t", "RECONNECT\t", "STRESS\t"))])
 args.output.parent.mkdir(parents=True, exist_ok=True)
 args.output.write_text(json.dumps(result, indent=2))
 for phase in phases:
-    if phase["name"].startswith("stress_") or (phase["name"].startswith("soak_") and phase["name"] not in ("soak_0", "soak_29")):
+    if phase["name"].startswith("stress_") or (phase["name"].startswith("cancel_burst_") and phase["name"] not in ("cancel_burst_0", "cancel_burst_19")) or (phase["name"].startswith("soak_") and phase["name"] not in ("soak_0", "soak_29")):
         continue
     print(f"{phase['name']}: {phase['elapsed_ms']:.0f}ms, {phase['throughput_kib_s']:.1f} KiB/s, {phase['read_calls']} reads, input {phase['input_round_trip']}")
 print(f"PASS: benchmark; peak RSS {result['peak_rss_bytes']/1048576:.1f} MiB; report {args.output}")

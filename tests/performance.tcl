@@ -183,11 +183,21 @@ while {[clock milliseconds]<$deadline} {
         phase stress_images_$cycle [join $lines \n]
         waitFor {[llength [$t image names]]==12 && [llength [$spawn image names]]==12}
         # Repeated layout changes exercise image reallocations.
+        wm state . normal
+        set widths {}
+        set mainPhoto ""
+        dict for {key photo} $::potato::pueblo::images::photos {
+            if {[lindex $key 0] eq $t} {set mainPhoto [lindex $photo 0]; break}
+        }
         foreach width {320 800 400 900} {
             wm geometry . ${width}x600
             update idletasks
+            after 10 {set ::resizeTick 1}; vwait ::resizeTick; unset ::resizeTick
             ::potato::pueblo::images::collect
+            lappend widths [image width $mainPhoto]
         }
+        if {[llength [lsort -unique $widths]]<2} {error {Window resize did not exercise image reallocations}}
+        record RESIZED $cycle [join $widths ,]
         $spawn delete 1.0 end
         $t delete 1.0 end
         ::potato::pueblo::images::collect
