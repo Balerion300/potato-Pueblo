@@ -76,6 +76,14 @@ batch, and cleanup runs even if a trigger fails. Direct output retains immediate
 updates. Image downloads retain bounded chunks and join once for decode, avoiding
 repeated whole-buffer copies. Explicit image collection cancels its old scheduled
 callback before scheduling another, preventing duplicate cleanup timers.
+An aggressive cancellation probe reproduced 64 simultaneous curl children after
+twenty rapid clear/reload cycles: early pipe closure detached unfinished processes
+and released their slots. Cancelled downloads now release their byte buffers
+immediately but retain a slot while their pipe is drained to EOF (bounded by
+curl's 15-second timeout). The same native Windows probe then peaked at four
+children. The sustained suite repeats this burst and checks both job limits and
+sampled child-process counts. New images can wait for cancelled requests to exit;
+this is intentional backpressure rather than launching unbounded processes.
 
 An original 4,000-line/2,000-link-cycle Windows run took 108 seconds with about
 90 CPU seconds. A matching run after these changes took 25 seconds and about

@@ -100,6 +100,7 @@ with tempfile.TemporaryDirectory(prefix="potato-benchmark-") as folder, Fixture(
             except psutil.NoSuchProcess:
                 break
             time.sleep(.1)
+        process.wait(timeout=5)
         text = events.read_text() if events.exists() else ""
         if process.returncode or not text.rstrip().endswith("PASS"):
             diagnostics = dict(build=identity, status="FAIL", samples=samples, events=text,
@@ -108,6 +109,11 @@ with tempfile.TemporaryDirectory(prefix="potato-benchmark-") as folder, Fixture(
             args.output.write_text(json.dumps(diagnostics, indent=2))
             print(diagnostics["process_log"])
             raise RuntimeError(f"Benchmark failed: {text[-4000:]}")
+        cancellation_samples = [s for s in samples if s.get('stage', '').startswith('cancel_burst_')]
+        if any(len(s['children']) > 8 for s in cancellation_samples):
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(json.dumps(dict(build=identity, status='FAIL', error='Unbounded cancelled download processes', samples=samples, events=text), indent=2))
+            raise RuntimeError('Cancelled downloads bypassed the process limit')
 
 def distribution(values):
     values = sorted(values)
@@ -148,6 +154,7 @@ result = dict(build=identity, status="PASS", startup_trials=5, working_source=ar
               elapsed_seconds=samples[-1]["seconds"], peak_rss_bytes=max(s["rss"] for s in samples),
               cpu_seconds=samples[-1]["cpu_seconds"], phases=phases, samples=samples, outgoing=outgoing,
               peak_tree_rss_bytes=max(s["tree_rss"] for s in samples),
+              peak_download_children=max(len(s["children"]) for s in samples),
               resources=resources, total_hot_paths=total_hot,
               allocations=[r for r in text.splitlines() if r.startswith("ALLOCATED\t")],
               cleanup=[r for r in text.splitlines() if r.startswith(("CLEAN\t", "SOAK\t", "IMAGES\t", "RECONNECT\t", "STRESS\t"))])

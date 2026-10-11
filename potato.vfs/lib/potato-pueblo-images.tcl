@@ -50,7 +50,7 @@ proc ::potato::pueblo::images::pump {} {
             --max-filesize 8388608 --proto =http,https --noproxy * --url $url 2>@1]
         if {[catch {open $command r} channel]} {continue}
         fconfigure $channel -blocking 0 -translation binary -encoding binary
-        dict set jobs $channel [dict create key $key chunks {} bytes 0]
+        dict set jobs $channel [dict create key $key chunks {} bytes 0 cancelled 0]
         fileevent $channel readable [list ::potato::pueblo::images::readable $channel]
     }
 }
@@ -59,10 +59,14 @@ proc ::potato::pueblo::images::readable {channel} {
     variable jobs
     if {![dict exists $jobs $channel]} {return}
     set key [dict get $jobs $channel key]
-    if {![alive $key]} {finish $channel 0; return}
+    if {![alive $key]} {cancel $channel}
     if {[catch {read $channel 65536} chunk]} {finish $channel 0; return}
+    if {[dict get $jobs $channel cancelled]} {
+        if {[eof $channel]} {finish $channel 0}
+        return
+    }
     set bytes [expr {[dict get $jobs $channel bytes]+[string length $chunk]}]
-    if {$bytes > 8388608} {finish $channel 0; return}
+    if {$bytes > 8388608} {cancel $channel; return}
     # Keep bounded chunks until completion instead of copying an increasingly
     # large buffer on every readable callback. Join once for image decoding.
     dict update jobs $channel job {
@@ -72,14 +76,28 @@ proc ::potato::pueblo::images::readable {channel} {
     if {[eof $channel]} {finish $channel 1}
 }
 
+proc ::potato::pueblo::images::cancel {channel} {
+    variable jobs
+    # Reclaim buffered bytes immediately, but keep the slot and drain the pipe
+    # until curl exits. Closing it early would detach a still-running process
+    # and allow repeated view clears to bypass the four-download limit.
+    if {[dict exists $jobs $channel]} {
+        dict update jobs $channel job {
+            dict set job cancelled 1
+            dict set job chunks {}
+            dict set job bytes 0
+        }
+    }
+}
+
 proc ::potato::pueblo::images::finish {channel success} {
     variable jobs
     if {![dict exists $jobs $channel]} {return}
     set job [dict get $jobs $channel]
     dict unset jobs $channel
     fileevent $channel readable {}
-    # Closing a nonblocking pipeline never waits for an unfinished download.
-    # curl has its own hard timeout, including after the owning view disappears.
+    # Completed pipes close without blocking the UI. Cancelled downloads retain
+    # their slots until EOF; curl's hard timeout also covers abandoned views.
     catch {close $channel}
     if {$success && [alive [dict get $job key]]} {
         catch {install [dict get $job key] [join [dict get $job chunks] ""]}
@@ -168,7 +186,7 @@ proc ::potato::pueblo::images::collect {} {
     if {$timer ne ""} {after cancel $timer}
     set timer ""
     foreach channel [dict keys $jobs] {
-        if {![alive [dict get $jobs $channel key]]} {finish $channel 0}
+        if {![alive [dict get $jobs $channel key]]} {cancel $channel}
     }
     foreach key [dict keys $seen] {
         lassign $key widget tag

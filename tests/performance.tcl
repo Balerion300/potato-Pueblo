@@ -139,6 +139,22 @@ for {set cycle 0} {$cycle<3} {incr cycle} {
     record CLEAN $cycle [dict size $::potato::pueblo::images::seen] [dict size $::potato::pueblo::images::jobs] [llength [$t tag names]]
 }
 set ::potato::conn($c,spawnAll) {}
+if {$stressSeconds>0} {
+    # Clearing a view must not free a process slot while its curl still runs.
+    for {set cycle 0} {$cycle<20} {incr cycle} {
+        phase cancel_burst_$cycle [join [lrepeat 4 "<img src=\"$::fixtureURL?slow\" alt=\"Cancel burst\">"] \n]
+        $t delete 1.0 end
+        ::potato::pueblo::render $c $t
+        ::potato::pueblo::images::collect
+        if {[dict size $::potato::pueblo::images::jobs]>4} {error {Cancelled downloads bypassed the active-job limit}}
+        dict for {channel job} $::potato::pueblo::images::jobs {
+            if {![dict get $job cancelled] || [dict get $job chunks] ne ""} {error {Cancelled download retained its allocation}}
+        }
+        after 50 {set ::cancelTick 1}; vwait ::cancelTick; unset ::cancelTick
+    }
+    waitFor {[dict size $::potato::pueblo::images::jobs]==0 && [llength $::potato::pueblo::images::queue]==0}
+    record CANCEL_BURST PASS
+}
 for {set cycle 0} {$cycle<30} {incr cycle} {
     $t delete 1.0 end
     phase soak_$cycle [join [lrange $links 0 199] \n]
