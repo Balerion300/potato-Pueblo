@@ -4628,7 +4628,7 @@ proc ::potato::connMaybeNAWS {{c ""}} {
 #: return number of lines
 proc ::potato::countWindowHeight {win} {
 
-	update
+	# Called by resize callbacks: never re-enter the event loop here.
 	set winheight [winfo height $win]
 	set metrics [font metrics [$win cget -font]]
 	set lineheight [dict get $metrics -linespace]
