@@ -90,6 +90,20 @@ jobs:
           name: Potato-Pueblo-${{ matrix.os }}
           path: artifacts/*.zip
           if-no-files-found: error
+      - name: Diagnostic workload and resource monitoring
+        timeout-minutes: 5
+        run: |
+          python3 -m pip install --user --break-system-packages psutil==7.1.0
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run -a python3 scripts/benchmark.py
+          else
+            python3 scripts/benchmark.py
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Performance-${{ matrix.os }}
+          path: artifacts/performance.json
+          if-no-files-found: error
   windows:
     runs-on: windows-latest
     env:
@@ -101,7 +115,7 @@ jobs:
           msystem: MINGW64
           update: true
           install: >-
-            git make mingw-w64-x86_64-gcc mingw-w64-x86_64-python
+            git make mingw-w64-x86_64-gcc mingw-w64-x86_64-python mingw-w64-x86_64-python-psutil
       - name: Record operating system and architecture
         shell: msys2 {0}
         run: python scripts/report_platform.py
@@ -139,4 +153,13 @@ jobs:
         with:
           name: Potato-Pueblo-Windows
           path: artifacts/*.zip
+          if-no-files-found: error
+      - name: Diagnostic workload and resource monitoring
+        timeout-minutes: 5
+        shell: msys2 {0}
+        run: python scripts/benchmark.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Performance-Windows
+          path: artifacts/performance.json
           if-no-files-found: error

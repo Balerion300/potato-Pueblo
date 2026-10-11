@@ -2,6 +2,7 @@
 namespace eval ::potato::pueblo {
     variable state
     variable serial 0
+    variable views [dict create]
 }
 
 proc ::potato::pueblo::option {c key} {
@@ -231,8 +232,31 @@ proc ::potato::pueblo::activate {c epoch kind value} {
     }
 }
 
-proc ::potato::pueblo::render {c widget} {
-    foreach tag [$widget tag names] {
+proc ::potato::pueblo::forgetView {widget} {
+    variable views
+    if {[dict exists $views $widget]} {dict unset views $widget}
+}
+
+proc ::potato::pueblo::render {c widget {start ""}} {
+    variable views
+    if {![dict exists $views $widget]} {
+        dict set views $widget [dict create count 0 font {}]
+        bind $widget <Destroy> +[list ::potato::pueblo::forgetView $widget]
+    }
+    set view [dict get $views $widget]
+    dict incr view count
+    # Bind only newly inserted links/images. Periodic full sweeps reclaim tags
+    # trimmed by transcript limits; an explicit full render also sweeps.
+    if {$start eq "" || [dict get $view count] % 64 == 0} {
+        set tags [$widget tag names]
+    } else {
+        set tags [$widget tag names $start]
+        foreach {kind tag index} [$widget dump -tag $start end] {
+            if {$kind eq "tagon"} {lappend tags $tag}
+        }
+        set tags [lsort -unique $tags]
+    }
+    foreach tag $tags {
         switch -- [lindex $tag 0] {
             potatoAction {
                 if {[$widget tag ranges $tag] eq ""} {$widget tag delete $tag; continue}
@@ -247,6 +271,10 @@ proc ::potato::pueblo::render {c widget} {
     }
     # Use each transcript's existing font rather than a hard-coded family.
     set font [font actual [$widget cget -font]]
-    $widget tag configure puebloBold -font [concat $font {-weight bold}]
-    $widget tag configure puebloItalic -font [concat $font {-slant italic}]
+    if {$font ne [dict get $view font]} {
+        $widget tag configure puebloBold -font [concat $font {-weight bold}]
+        $widget tag configure puebloItalic -font [concat $font {-slant italic}]
+        dict set view font $font
+    }
+    dict set views $widget $view
 }

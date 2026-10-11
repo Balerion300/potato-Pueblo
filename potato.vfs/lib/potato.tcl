@@ -3656,7 +3656,7 @@ proc ::potato::get_mushage {c} {
 		return;
 	}
 
-	set disc [catch {::potato::ioRead $conn($c,id) 10} text]
+	set disc [catch {::potato::ioRead $conn($c,id) 1024} text]
 	if { $disc } {
 		disconnect $c 0
 		boot_reconnect $c
@@ -3680,6 +3680,8 @@ proc ::potato::get_mushage {c} {
 		set conn($c,outputBuffer) [string range $conn($c,outputBuffer) [expr {$nextNewline+1}] end]
 		get_mushageProcess $c $toProcess
 	}
+	# Flush layout once per bounded input batch, instead of once per line.
+	update idletasks
 	return;
 
 };# ::potato::get_mushage
@@ -3898,9 +3900,13 @@ proc ::potato::get_mushageProcess {c line} {
 	}
 
 	if { !$empty && !$omit } {
+		set puebloStart [$t index "$endPos - 1 indices"]
 		$t insert $endPos "\n" [lindex [list "" limited] $limit] {*}$inserts
 		$t insert $endPos  [clock seconds] [list timestamp]
-		::potato::pueblo::render $c $t
+		::potato::pueblo::render $c $t $puebloStart
+		if {$world($w,outputLimit,on) && [string is integer -strict $world($w,outputLimit,to)] && $world($w,outputLimit,to) > 0} {
+			$t delete 1.0 end-$world($w,outputLimit,to)lines
+		}
 		set insertedAnything 1
 		if { $aE } {
 			$t see end
@@ -3922,12 +3928,13 @@ proc ::potato::get_mushageProcess {c line} {
 			set sname [lindex $x 0]
 			set swidget [lindex $x 1]
 			set aE [atEnd $swidget]
+			set puebloStart [$swidget index end-1c]
 			if { [$swidget count -chars 1.0 3.0] != 1 } {
 				$swidget insert end "\n" "" {*}$inserts [clock seconds] [list timestamp]
 			} else {
 				$swidget insert end {*}$inserts [clock seconds] [list timestamp]
 			}
-			::potato::pueblo::render $c $swidget
+			::potato::pueblo::render $c $swidget $puebloStart
 			if { !$noActivity } {
 				::skin::$potato(skin)::spawnUpdate $c $sname
 			}
@@ -3979,8 +3986,6 @@ proc ::potato::get_mushageProcess {c line} {
 	beepNumTimes $beepCount
 
 	skinStatus $c
-
-	update idletasks
 
 	return;
 

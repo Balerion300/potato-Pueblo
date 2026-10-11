@@ -208,6 +208,15 @@ set ::potato::world($w,temp) 0
 set f [open [lindex [glob -directory $::potato::path(world) Fixture-*.wld] 0] r]
 set saved [read $f]; close $f
 assert {[string first {pueblo,enabled} $saved]>=0} "saved per-world Pueblo setting"
+set ::potato::world($w,outputLimit,on) 1
+set ::potato::world($w,outputLimit,to) 5
+for {set i 0} {$i<10} {incr i} {puts $::peer "Bounded output $i"}
+puts $::peer {Output limit complete}
+waitFor {[string first {Output limit complete} [$t get 1.0 end]]>=0}
+assert {[lindex [split [$t index end] .] 0]<=6} "configured main transcript limit"
+assert {[string first {Bounded output 0} [$t get 1.0 end]]<0} "old output removed while latest output remains"
+::potato::pueblo::images::collect
+assert {[dict size $::potato::pueblo::images::photos]==1 && [llength [$spawn image names]]==1} "trimmed main photo reclaimed while spawn photo remains"
 ::potato::disconnect $c 0
 close $::peer
 if {[info exists server]} {close $server}

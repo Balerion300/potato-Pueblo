@@ -3,6 +3,7 @@ import http.server
 import socketserver
 import struct
 import threading
+import time
 import zlib
 
 
@@ -39,6 +40,14 @@ class Fixture:
                     if not fixture.game_ready.wait(5):
                         return
                     with fixture.lock:
+                        if line.rstrip() == b'PERF-FRAGMENT':
+                            # Deliberately split inside UTF-8, ANSI and Pueblo.
+                            payload = '\x1b[32mSnowman \u2603 and caf\u00e9\x1b[0m <b>fragmented</b>\r\nPERF-FRAGMENT-DONE\n'.encode()
+                            for offset in range(0, len(payload), 3):
+                                fixture.game.write(payload[offset:offset+3])
+                                fixture.game.flush()
+                                time.sleep(.002)
+                            continue
                         fixture.game.write(line)
                         fixture.game.flush()
 
