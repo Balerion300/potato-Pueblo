@@ -45,8 +45,20 @@ It supplies no exception, architecture or reproduction details. These previews
 build Tcl/Tk **8.6.18** from pinned source for Windows, Linux and both Mac
 architectures. That release includes support for macOS's major-version
 renumbering: [release notes](https://github.com/tcltk/tcl/releases/tag/core-8-6-18).
-This is a plausible runtime remedy, not evidence that the reported Tahoe failure
-is fixed. Native Tahoe user acceptance is still required.
+The native test matrix now includes Tahoe on Apple Silicon and Intel, macOS 15
+on both architectures, Ubuntu 22.04/24.04 x86_64, Ubuntu 24.04 ARM, and Windows.
+Every job records the actual OS version in its logs, job summary and packaged
+BUILD.json. Check the latest successful run for evidence on each platform.
+These tests exercise the portable native runtime; they do not prove the old
+upstream Mac application bundle works. Native desktop user acceptance is still
+required, particularly for downloaded-file security prompts and appearance.
+
+Game SSL availability is reported separately by the complete-client tests.
+The current packages have no usable TclTLS library on Apple Silicon or Linux;
+those previews support ordinary game connections and HTTPS image downloads,
+but cannot yet connect to the game's SSL port. Intel Mac and Windows load the
+legacy bundled TclTLS library. Automated loopback connection checks use plain
+TCP, so they must not be cited as SSL connection tests.
 
 Download the ZIP for your platform from the successful GitHub Actions run.
 Mac: use `Start Potato Pueblo.command`; Windows/Linux: use the included Start

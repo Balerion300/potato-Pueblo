@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Record operating system and architecture
-        run: python3 scripts/report-platform.py
+        run: python3 scripts/report_platform.py
       - name: Linux build dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libx11-dev libxft-dev libxss-dev libfontconfig1-dev xvfb
@@ -80,7 +80,7 @@ jobs:
             git make mingw-w64-x86_64-gcc mingw-w64-x86_64-python
       - name: Record operating system and architecture
         shell: msys2 {0}
-        run: python scripts/report-platform.py
+        run: python scripts/report_platform.py
       - uses: actions/cache/restore@v4
         id: runtime
         with:
