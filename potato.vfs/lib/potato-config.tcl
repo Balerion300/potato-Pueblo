@@ -37,6 +37,11 @@ proc ::potato::setPrefs {readfile} {
 	set world(0,ansi,echo) #0000ffff8800
 	set world(0,ansi,link) #4848ff
 
+	# Negotiated markup and remote resources are opt-in per world.
+	set world(0,pueblo,enabled) 0
+	set world(0,pueblo,images) 0
+	set world(0,pueblo,commands) 0
+
 	# which kinds of ansi are allowed by default
 	set world(0,ansi,flash) 0
 	set world(0,ansi,underline) 1
@@ -776,6 +781,12 @@ proc ::potato::configureWorld {{w ""} {autosave 0}} {
 	pack [set sub [::ttk::frame $frame.nbsp]] -side top -pady 5 -anchor nw
 	pack [::ttk::label $sub.l -text [T "Convert NBSPs?"] -width 20 -anchor w -justify left] -side left
 	pack [::ttk::checkbutton $sub.cb -variable potato::worldconfig($w,convertNonBreakingSpaces) -onvalue 1 -offvalue 0] -side left
+
+	# Pueblo display controls, saved with the other world settings.
+	pack [set sub [::ttk::frame $frame.pueblo]] -side top -pady 5 -anchor nw
+	foreach {key label} {enabled {Enable Pueblo (reconnect after changing)} images {Show inline images} commands {Allow command clicks}} {
+		pack [::ttk::checkbutton $sub.$key -text [T $label] -variable ::potato::worldconfig($w,pueblo,$key)] -side top -anchor w
+	}
 
 	# Activity Settings
 	set frame [configureFrame $canvas [T "Activity Settings"]]

@@ -2451,7 +2451,7 @@ proc ::potato::launchWebPage {url} {
 			HP-UX -
 			Linux  -
 			SunOS {
-				foreach executable [list firefox mozilla netscape iexplorer \
+				foreach executable [list xdg-open firefox mozilla netscape iexplorer \
 					opera lynx w3m links epiphany galeon konqueror mosaic amaya \
 					browsex elinks] {
 					set executable [auto_execok $executable]
@@ -3174,6 +3174,7 @@ proc ::potato::connectComplete {c} {
 	set id $conn($c,id)
 
 	set conn($c,connected) 1
+	::potato::pueblo::reset $c
 
 	set conn($c,stats,connAt) [clock seconds]
 	set conn($c,stats,formatted) [statsFormat 0]
@@ -3513,6 +3514,7 @@ proc ::potato::disconnect {{c ""} {prompt 1}} {
 		outputSystem $c [T "Connection attempt cancelled. - %s" [timestamp]]
 	}
 	set conn($c,connected) 0
+	::potato::pueblo::reset $c
 	set conn($c,address) [list]
 	set conn($c,address,disp) [T "Not Connected"]
 	timersStop $c
@@ -3788,6 +3790,17 @@ proc ::potato::get_mushageProcess {c line} {
 		}
 	}
 
+	# Parse display markup before triggers/logging so their text remains readable.
+	if {[::potato::pueblo::option $c enabled]} {
+		set wasText [expr {$lineNoansi ne ""}]
+		lappend tagged [list "\n" [get_mushageColours conn $c]]
+		set tagged [::potato::pueblo::parse $c $tagged]
+		if {[llength $tagged] && [lindex $tagged end 0] eq "\n"} {set tagged [lrange $tagged 0 end-1]}
+		set lineNoansi ""
+		foreach item $tagged {append lineNoansi [lindex $item 0]}
+		if {$wasText && ![llength $tagged]} {return}
+	}
+
 	set insertedAnything 0 ;# we only flash the window if we have
 
 	eventsMatch $c tagged lineNoansi eventInfo
@@ -3879,6 +3892,7 @@ proc ::potato::get_mushageProcess {c line} {
 	if { !$empty && !$omit } {
 		$t insert $endPos "\n" [lindex [list "" limited] $limit] {*}$inserts
 		$t insert $endPos  [clock seconds] [list timestamp]
+		::potato::pueblo::render $c $t
 		set insertedAnything 1
 		if { $aE } {
 			$t see end
@@ -3905,6 +3919,7 @@ proc ::potato::get_mushageProcess {c line} {
 			} else {
 				$swidget insert end {*}$inserts [clock seconds] [list timestamp]
 			}
+			::potato::pueblo::render $c $swidget
 			if { !$noActivity } {
 				::skin::$potato(skin)::spawnUpdate $c $sname
 			}
@@ -6691,7 +6706,17 @@ proc ::potato::main {} {
 		set path(startupCmds) [file join ~ .potato potato.startup]
 		set path(i18n) [file join ~ .potato i18n]
 	}
+	# Explicit isolated profile directory, also used by automated/native previews.
+	if {[info exists ::env(POTATO_HOME)] && $::env(POTATO_HOME) ne ""} {
+		set profile [file normalize $::env(POTATO_HOME)]
+		file mkdir $profile
+		foreach {key name} {world worlds skins skins userlib lib preffile potato.ini custom potato.custom startupCmds potato.startup i18n i18n} {
+			set path($key) [file join $profile $name]
+		}
+		set dev [file join $profile potato.dev]
+	} else {
 	set dev [file join $path(homedir) potato.dev]
+	}
 
 	# This MUST be after basic_reqs, as the [tk] command isn't available on
 	# linux until that's called.
@@ -12780,7 +12805,7 @@ proc ::potato::basic_reqs {} {
 	# OK, that's Tcl and Tk sorted. Now let's load in the other parts of Potato from separate
 	# files. These really shouldn't be an issue....
 
-	set files [list telnet proxy wikihelp spell encoding config events slash]
+	set files [list telnet proxy wikihelp spell encoding config events slash pueblo pueblo-images]
 
 	set packages [list \
 		[list treeviewUtils] \

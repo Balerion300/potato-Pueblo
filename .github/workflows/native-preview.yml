@@ -1,0 +1,70 @@
+name: Native preview
+on:
+  push:
+    branches: ['codex/pueblo-inline-images']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxft-dev libxss-dev libfontconfig1-dev xvfb
+      - name: Build pinned Tcl/Tk 8.6.18
+        run: bash scripts/build-runtime.sh
+      - name: Native parser, images and complete client checks
+        shell: bash
+        run: |
+          export TCL_LIBRARY="$PWD/.build/runtime/lib/tcl8.6"
+          export TK_LIBRARY="$PWD/.build/runtime/lib/tk8.6"
+          export POTATO_HOME="$RUNNER_TEMP/potato-test-profile"
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run -a .build/runtime/bin/wish8.6 tests/pueblo.test.tcl
+            xvfb-run -a .build/runtime/bin/wish8.6 tests/client.test.tcl
+          else
+            .build/runtime/bin/wish8.6 tests/pueblo.test.tcl
+            .build/runtime/bin/wish8.6 tests/client.test.tcl
+          fi
+      - name: Package native preview
+        run: python3 scripts/package-preview.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Potato-Pueblo-${{ matrix.os }}
+          path: artifacts/*.zip
+          if-no-files-found: error
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git make mingw-w64-x86_64-gcc mingw-w64-x86_64-python
+      - name: Build pinned Tcl/Tk 8.6.18
+        shell: msys2 {0}
+        run: bash scripts/build-runtime.sh
+      - name: Native parser, images and complete client checks
+        shell: msys2 {0}
+        run: |
+          export TCL_LIBRARY="$(cygpath -m "$PWD/.build/runtime/lib/tcl8.6")"
+          export TK_LIBRARY="$(cygpath -m "$PWD/.build/runtime/lib/tk8.6")"
+          export POTATO_HOME="$(cygpath -m "$RUNNER_TEMP/potato-test-profile")"
+          .build/runtime/bin/wish86.exe tests/pueblo.test.tcl
+          .build/runtime/bin/wish86.exe tests/client.test.tcl
+      - name: Package native preview
+        shell: msys2 {0}
+        run: python scripts/package-preview.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Potato-Pueblo-Windows
+          path: artifacts/*.zip
+          if-no-files-found: error
