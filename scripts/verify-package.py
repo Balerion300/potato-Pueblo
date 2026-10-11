@@ -11,6 +11,13 @@ if platform.system() == "Darwin":
     contents = package / "Potato Pueblo Preview.app" / "Contents"
     resources = contents / "Resources"
     executable = contents / "MacOS" / "Wish"
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        # The fixture itself opens a local listening socket in the new app.
+        # Allow incoming test traffic only on the ephemeral CI machine.
+        firewall = "/usr/libexec/ApplicationFirewall/socketfilterfw"
+        for target in (contents.parent, executable):
+            subprocess.run(["sudo", firewall, "--add", str(target)], check=True)
+            subprocess.run(["sudo", firewall, "--unblockapp", str(target)], check=True)
 else:
     resources = package
     executable = resources / "runtime" / "bin" / ("wish86s.exe" if platform.system() == "Windows" else "wish8.6")

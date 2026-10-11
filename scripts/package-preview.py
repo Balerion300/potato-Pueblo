@@ -28,7 +28,8 @@ if system == "Darwin":
                  CFBundleIdentifier="org.westeros.potato-pueblo.preview", CFBundleVersion="1",
                  CFBundleShortVersionString="0.1", CFBundleExecutable="Potato-Pueblo",
                  CFBundlePackageType="APPL", NSHighResolutionCapable=True,
-                 LSMinimumSystemVersion="13.0")
+                 LSMinimumSystemVersion="13.0",
+                 NSLocalNetworkUsageDescription="Connect to MUSH games hosted on your local network.")
     (contents / "Info.plist").write_bytes(plistlib.dumps(plist))
     launcher = binaries / "Potato-Pueblo"
     shutil.copy2(runtime / "bin" / "wish8.6", binaries / "Wish")
