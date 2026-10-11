@@ -62,6 +62,18 @@ set priorConnection $::potato::potato(up)
 set ::potato::potato(up) ""
 assert {[::potato::up]==0} "startup current connection reports system tab"
 menu .startupTestMenu -tearoff 0
+set priorReady $::potato::potato(menusReady)
+set ::potato::potato(menusReady) 0
+set ::menuProbe 0
+proc menuProbe {widget} {incr ::menuProbe}
+::potato::postMenu menuProbe .startupTestMenu
+assert {$::menuProbe==0} "native menu preprocessing waits for complete startup"
+set ::potato::potato(menusReady) 1
+::potato::postMenu menuProbe .startupTestMenu
+assert {$::menuProbe==1} "native menu preprocessing resumes after startup"
+set ::potato::potato(menusReady) $priorReady
+rename menuProbe {}
+assert {[lindex [$::potato::menu(view,path) cget -postcommand] 0] eq "::potato::postMenu"} "actual View menu uses initialization barrier"
 ::potato::build_menu_file .startupTestMenu
 assert {[.startupTestMenu entrycget [expr {[.startupTestMenu index end]-2}] -state] eq "disabled"} "startup MSSP menu safely disabled"
 destroy .startupTestMenu

@@ -63,6 +63,11 @@ images still present in spawn views. Unlimited output remains the default;
 retaining unlimited history necessarily grows memory. Enable the output limit
 when bounded transcript memory is wanted.
 
+Repeated native runs also exposed Aqua menu preprocessing before the skin and
+first tab had initialized. All native menu callbacks now wait for that startup
+state, with direct tests for the initialization barrier, empty current tab and
+the MSSP menu's unavailable connection data.
+
 These checks cover synthetic bursts and repeated lifecycle operations, not
 multi-day sessions, every user script/trigger, every Linux distribution, Finder
 security prompts, or Mac app notarization. Native desktop and longer real-game

@@ -6841,6 +6841,7 @@ proc ::potato::main {} {
 	set running 1;# so potato.tcl can be re-sourced without re-running this proc
 
 	newConnection 0
+	set potato(menusReady) 1
 
 	# This must come before setUpBindings
 	setUpFlash
@@ -8381,6 +8382,13 @@ proc ::potato::build_menu_help {m} {
 #: proc ::potato::setUpMenu
 #: desc set up the menu in the main window
 #: return nothing
+proc ::potato::postMenu {builder widget} {
+	variable potato;
+	# Aqua preprocesses menus while startup layout is still running.
+	if {![info exists potato(menusReady)] || !$potato(menusReady)} {return}
+	$builder $widget
+}
+
 proc ::potato::setUpMenu {} {
 	variable menu;
 
@@ -8391,16 +8399,16 @@ proc ::potato::setUpMenu {} {
 	menu $menuname -tearoff 0
 	. configure -menu $menuname
 	catch {destroy {*}[winfo children $menuname]}
-	set menu(file,path) [menu $menuname.file -tearoff 0 -postcommand [list ::potato::build_menu_file $menuname.file]]
-	set menu(edit,path) [menu $menuname.edit -tearoff 0 -postcommand [list ::potato::build_menu_edit $menuname.edit]]
+	set menu(file,path) [menu $menuname.file -tearoff 0 -postcommand [list ::potato::postMenu ::potato::build_menu_file $menuname.file]]
+	set menu(edit,path) [menu $menuname.edit -tearoff 0 -postcommand [list ::potato::postMenu ::potato::build_menu_edit $menuname.edit]]
 	set menu(edit,convert,path) [menu $menuname.edit.convert -tearoff 0]
 	set menu(connect,path) [menu $menuname.file.connect -tearoff 0 -postcommand [list ::potato::rebuildConnectMenu $menuname.file.connect]]
-	set menu(view,path) [menu $menuname.view -tearoff 0 -postcommand [list ::potato::build_menu_view $menuname.view]]
-	set menu(log,path) [menu $menuname.log -tearoff 0 -postcommand [list ::potato::build_menu_log $menuname.log]]
-	set menu(log,stop,path) [menu $menuname.log.stop -tearoff 0 -postcommand [list ::potato::build_menu_log_stop $menuname.log.stop]]
-	set menu(options,path) [menu $menuname.options -tearoff 0 -postcommand [list ::potato::build_menu_options $menuname.options]]
-	set menu(tools,path) [menu $menuname.tools -tearoff 0 -postcommand [list ::potato::build_menu_tools $menuname.tools]]
-	set menu(help,path) [menu $menuname.help -tearoff 0 -postcommand [list ::potato::build_menu_help $menuname.help]]
+	set menu(view,path) [menu $menuname.view -tearoff 0 -postcommand [list ::potato::postMenu ::potato::build_menu_view $menuname.view]]
+	set menu(log,path) [menu $menuname.log -tearoff 0 -postcommand [list ::potato::postMenu ::potato::build_menu_log $menuname.log]]
+	set menu(log,stop,path) [menu $menuname.log.stop -tearoff 0 -postcommand [list ::potato::postMenu ::potato::build_menu_log_stop $menuname.log.stop]]
+	set menu(options,path) [menu $menuname.options -tearoff 0 -postcommand [list ::potato::postMenu ::potato::build_menu_options $menuname.options]]
+	set menu(tools,path) [menu $menuname.tools -tearoff 0 -postcommand [list ::potato::postMenu ::potato::build_menu_tools $menuname.tools]]
+	set menu(help,path) [menu $menuname.help -tearoff 0 -postcommand [list ::potato::postMenu ::potato::build_menu_help $menuname.help]]
 
 	$menuname add cascade -menu $menuname.file {*}[menu_label [T "&File"]]
 	set menu(file) [$menuname index end]
@@ -8427,6 +8435,7 @@ proc ::potato::setUpMenu {} {
 #: return nothing
 proc ::potato::checkForUpdates {{background 0}} {
 	variable potato;
+	set potato(menusReady) 0
 	variable update;
 
 	set win .checkForUpdates
