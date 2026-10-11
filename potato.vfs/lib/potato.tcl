@@ -3673,13 +3673,28 @@ proc ::potato::get_mushage {c} {
 	append conn($c,outputBuffer) $text
 	# PennMUSH's Pueblo response uses LF even on a CRLF MUSH connection.
 	# Accept both forms; retain the configured ending for outgoing commands.
-	while { [set nextNewline [string first "\n" $conn($c,outputBuffer)]] > -1 } {
-		set rawLine [string range $conn($c,outputBuffer) 0 [expr {$nextNewline-1}]]
-		if {[string index $rawLine end] eq "\r"} {set rawLine [string range $rawLine 0 end-1]}
-		set toProcess [encoding convertfrom $conn($c,id,encoding) $rawLine]
-		set conn($c,outputBuffer) [string range $conn($c,outputBuffer) [expr {$nextNewline+1}] end]
-		get_mushageProcess $c $toProcess
+	set ownBatch [expr {![info exists conn($c,outputFollow)]}]
+	if {$ownBatch} {set conn($c,outputFollow) [dict create]}
+	set processed 0
+	try {
+		while { [set nextNewline [string first "\n" $conn($c,outputBuffer)]] > -1 } {
+			set rawLine [string range $conn($c,outputBuffer) 0 [expr {$nextNewline-1}]]
+			if {[string index $rawLine end] eq "\r"} {set rawLine [string range $rawLine 0 end-1]}
+			set toProcess [encoding convertfrom $conn($c,id,encoding) $rawLine]
+			set conn($c,outputBuffer) [string range $conn($c,outputBuffer) [expr {$nextNewline+1}] end]
+			set processed 1
+			get_mushageProcess $c $toProcess
+		}
+	} finally {
+		if {$ownBatch && [info exists conn($c,outputFollow)]} {
+			set follow $conn($c,outputFollow)
+			unset conn($c,outputFollow)
+			dict for {widget unused} $follow {
+				if {[winfo exists $widget]} {$widget see end}
+			}
+		}
 	}
+	if {$ownBatch && $processed && [info exists conn($c,world)]} {skinStatus $c}
 	# Flush layout once per bounded input batch, instead of once per line.
 	update idletasks
 	return;
@@ -3890,7 +3905,7 @@ proc ::potato::get_mushageProcess {c line} {
 	} else {
 		set endPos end
 	}
-	set aE [atEnd $t]
+	set aE [outputAtEnd $c $t]
 	if { !$empty && !$omit && !$limit && $showNewAct } {
 		if { $world($w,act,clearOldNewActNotices) && [llength [$t tag nextrange newact 1.0]] } {
 			$t delete {*}[$t tag ranges newact]
@@ -3909,7 +3924,7 @@ proc ::potato::get_mushageProcess {c line} {
 		}
 		set insertedAnything 1
 		if { $aE } {
-			$t see end
+			followOutput $c $t
 		}
 	}
 
@@ -3927,7 +3942,7 @@ proc ::potato::get_mushageProcess {c line} {
 		foreach x [parseSpawnList $c $spawns] {
 			set sname [lindex $x 0]
 			set swidget [lindex $x 1]
-			set aE [atEnd $swidget]
+			set aE [outputAtEnd $c $swidget]
 			set puebloStart [$swidget index end-1c]
 			if { [$swidget count -chars 1.0 3.0] != 1 } {
 				$swidget insert end "\n" "" {*}$inserts [clock seconds] [list timestamp]
@@ -3939,7 +3954,7 @@ proc ::potato::get_mushageProcess {c line} {
 				::skin::$potato(skin)::spawnUpdate $c $sname
 			}
 			if { $aE } {
-				$swidget see end
+				followOutput $c $swidget
 			}
 			if { $limit } {
 				$swidget delete 1.0 end-${limit}lines
@@ -3985,7 +4000,8 @@ proc ::potato::get_mushageProcess {c line} {
 
 	beepNumTimes $beepCount
 
-	skinStatus $c
+	# Refresh once at the end of a receive batch; direct output remains immediate.
+	if {![info exists conn($c,outputFollow)]} {skinStatus $c}
 
 	return;
 
@@ -4132,6 +4148,22 @@ proc ::potato::destroySpawnWindow {c name} {
 	return;
 
 };# ::potato::destroySpawnWindow
+
+# During a socket batch, remember views following the bottom before insertion.
+# Readers in scrollback keep their position; direct output still scrolls immediately.
+proc ::potato::outputAtEnd {c widget} {
+    variable conn
+    if {[info exists conn($c,outputFollow)] && [dict exists $conn($c,outputFollow) $widget]} {return 1}
+    return [atEnd $widget]
+}
+proc ::potato::followOutput {c widget} {
+    variable conn
+    if {[info exists conn($c,outputFollow)]} {
+        dict set conn($c,outputFollow) $widget 1
+    } else {
+        $widget see end
+    }
+}
 
 #: proc ::potato::atEnd
 #: arg t text widget

@@ -112,8 +112,28 @@ set c $::potato::potato(up)
 waitFor {[lsearch -exact $::wire {PUEBLOCLIENT 1.10}]>=0}
 waitFor {[dict get $::potato::pueblo::state($c) active]}
 set t $::potato::conn($c,textWidget)
+wm state . normal
+wm geometry . 800x500
+update idletasks
 puts "CHECK: Pueblo negotiated"; flush stdout
 assert {$::potato::conn($c,connected)==1} "loopback connection"
+testPump
+$t see end
+update idletasks
+# Several lines in one real receive batch must follow the bottom, while incoming
+# output must not pull a reader out of scrollback.
+set burst {}
+for {set i 0} {$i<60} {incr i} {lappend burst "Scroll fixture $i"}
+puts $::peer [join $burst \n]
+waitFor {[string first {Scroll fixture 59} [$t get 1.0 end]]>=0}
+assert {[::potato::atEnd $t]} "batched incoming output follows bottom"
+$t yview 1.0
+testPump
+set anchor [$t index @0,0]
+puts $::peer "Scrollback extra one\nScrollback extra two\nScrollback marker"
+waitFor {[string first {Scrollback marker} [$t get 1.0 end]]>=0}
+assert {[$t index @0,0] eq $anchor && ![::potato::atEnd $t]} "receive batch preserves scrollback position"
+$t see end
 set ::heightEventRan 0
 set heightEvent [after 0 {set ::heightEventRan 1}]
 set measuredHeight [::potato::countWindowHeight $t]

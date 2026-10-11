@@ -16,7 +16,8 @@ return 2.0}; close $f
 set ::argv {}; set ::argc 0
 source [file join $::env(POTATO_TEST_SOURCE_ROOT) potato.vfs main.tcl]
 interp bgerror {} perfBackgroundError
-after 300000 {fail {benchmark timeout}}
+set stressSeconds $::env(POTATO_STRESS_SECONDS)
+after [expr {300000+1000*$stressSeconds}] {fail {benchmark timeout}}
 proc waitFor {expression} {
     set deadline [expr {[clock milliseconds]+30000}]
     while {![uplevel 1 [list expr $expression]]} {
@@ -33,6 +34,8 @@ proc receive {} {
             dict unset ::pending $line
         }
         lappend ::wire $line
+        # The diagnostic must not create an apparent client leak itself.
+        if {[llength $::wire]>64} {set ::wire [lrange $::wire end-63 end]}
     }
 }
 set ::peer [socket 127.0.0.1 $::env(POTATO_FIXTURE_CONTROL_PORT)]
@@ -46,15 +49,32 @@ set ::potato::world($w,encoding,start) utf-8
 set c $::potato::potato(up); set t $::potato::conn($c,textWidget)
 waitFor {[dict get $::potato::pueblo::state($c) active]}
 # Measure actual application hot paths, including native widget work.
-set ::timings [dict create]; set ::readCalls 0; set ::readBytes 0; set ::receivedLines 0
-foreach name {get_mushageProcess parseANSI flattenParsedANSI eventsMatch pueblo::parse pueblo::render} {
+set ::timings [dict create]; set ::totalTimings [dict create]; set ::totalCalls [dict create]
+set ::readCalls 0; set ::readBytes 0; set ::receivedLines 0
+proc profileWidget {widget} {
+    rename $widget ${widget}_perfNative
+    proc $widget {args} [string map [list @WIDGET@ $widget] {
+        set start [clock microseconds]
+        set code [catch {uplevel 1 [list @WIDGET@_perfNative {*}$args]} value options]
+        set elapsed [expr {[clock microseconds]-$start}]
+        dict incr ::timings widget:[lindex $args 0] $elapsed
+        dict incr ::totalTimings widget:[lindex $args 0] $elapsed
+        dict incr ::totalCalls widget:[lindex $args 0]
+        return -options $options $value
+    }]
+}
+profileWidget $t
+foreach name {get_mushageProcess parseANSI flattenParsedANSI eventsMatch atEnd skinStatus setPrompt pueblo::parse pueblo::render pueblo::images::collect pueblo::images::resize pueblo::images::readable pueblo::images::install} {
     set original "[namespace qualifiers ::potato::$name]::perfOriginal_[namespace tail ::potato::$name]"
     rename ::potato::$name $original
     proc ::potato::$name {args} [string map [list @NAME@ $name @ORIGINAL@ $original] {
         if {"@NAME@" eq "get_mushageProcess"} {incr ::receivedLines}
         set start [clock microseconds]
         set code [catch {uplevel 1 [list @ORIGINAL@ {*}$args]} value options]
-        dict incr ::timings @NAME@ [expr {[clock microseconds]-$start}]
+        set elapsed [expr {[clock microseconds]-$start}]
+        dict incr ::timings @NAME@ $elapsed
+        dict incr ::totalTimings @NAME@ $elapsed
+        dict incr ::totalCalls @NAME@
         return -options $options $value
     }]
 }
@@ -72,7 +92,7 @@ proc beat {expected} {
     set command "PERF-PROBE-[incr ::probeNumber]"
     dict set ::pending $command [clock microseconds]
     ::potato::send_to_noparse $::c $command "" 0
-    after 50 [list beat [expr {$now+50}]]
+    set ::beatTimer [after 50 [list beat [expr {$now+50}]]]
 }
 beat [clock milliseconds]
 record START [info patchlevel] [tk windowingsystem]
@@ -103,6 +123,7 @@ rename ::potato::pueblo::url ::potato::pueblo::productionURL
 proc ::potato::pueblo::url {value} {return [expr {[string match "$::fixtureURL*" $value] || [productionURL $value]}]}
 set ::potato::conn($c,spawnAll) {Images}
 set spawn [lindex [::potato::createSpawnWindow $c Images] 1]
+profileWidget $spawn
 for {set cycle 0} {$cycle<3} {incr cycle} {
     $t delete 1.0 end; $spawn delete 1.0 end
     ::potato::pueblo::render $c $t; ::potato::pueblo::render $c $spawn
@@ -124,7 +145,87 @@ for {set cycle 0} {$cycle<30} {incr cycle} {
     $t delete 1.0 end; ::potato::pueblo::render $c $t
     record SOAK $cycle [llength [$t tag names]] [llength [image names]]
 }
+proc resources {cycle} {
+    record RESOURCES $cycle [clock milliseconds] [llength [image names]] \
+        [dict size $::potato::pueblo::images::photos] $::potato::pueblo::images::totalPixels \
+        [dict size $::potato::pueblo::images::jobs] [llength $::potato::pueblo::images::queue] \
+        [dict size $::potato::pueblo::images::seen] [llength [$::t tag names]] \
+        [llength [chan names]] [llength [after info]] [dict size $::potato::pueblo::views]
+}
+set deadline [expr {[clock milliseconds]+1000*$stressSeconds}]
+set cycle 0
+resources start
+set tagLimit [expr {max([llength [$t tag names]],[llength [$spawn tag names]])}]
+while {[clock milliseconds]<$deadline} {
+    $t delete 1.0 end
+    phase stress_links_$cycle [join [lrange $links 0 199] \n]
+    phase stress_ansi_$cycle [join [lrange $ansi 0 199] \n]
+    if {$cycle%5==0} {
+        set ::potato::conn($c,spawnAll) {Images}
+        set lines {}
+        for {set i 0} {$i<12} {incr i} {lappend lines "<img src=\"$::fixtureURL\" alt=\"Stress $cycle $i\">"}
+        phase stress_images_$cycle [join $lines \n]
+        waitFor {[llength [$t image names]]==12 && [llength [$spawn image names]]==12}
+        # Repeated layout changes exercise image reallocations.
+        foreach width {320 800 400 900} {
+            wm geometry . ${width}x600
+            update idletasks
+            ::potato::pueblo::images::collect
+        }
+        $spawn delete 1.0 end
+        $t delete 1.0 end
+        ::potato::pueblo::images::collect
+        set ::potato::conn($c,spawnAll) {}
+    }
+    if {$cycle%15==0} {
+        phase stress_bad_image_$cycle "<img src=\"$::fixtureURL?bad\" alt=\"Invalid image\">"
+        waitFor {[dict size $::potato::pueblo::images::jobs]==0 && [llength $::potato::pueblo::images::queue]==0}
+        if {[llength [$t image names]]} {error {Invalid image installed pixels}}
+        phase stress_cancel_image_$cycle "<img src=\"$::fixtureURL?slow\" alt=\"Cancelled image\">"
+        waitFor {[dict size $::potato::pueblo::images::jobs]>0}
+        # Clearing the view before the delayed download finishes must reclaim
+        # its channel and never install pixels back into the new transcript.
+    }
+    if {$cycle%20==0} {
+        $t delete 1.0 end
+        ::potato::pueblo::render $c $t
+        set ::potato::conn($c,spawnAll) {Images}
+        phase stress_large_images_$cycle [join [lrepeat 4 "<img src=\"$::fixtureURL?large\" alt=\"Large allocation\">"] \n]
+        waitFor {[llength [$t image names]]==4 && [llength [$spawn image names]]==4}
+        record ALLOCATED $cycle [dict size $::potato::pueblo::images::photos] $::potato::pueblo::images::totalPixels
+        $spawn delete 1.0 end
+        set ::potato::conn($c,spawnAll) {}
+    }
+    $t delete 1.0 end
+    ::potato::pueblo::render $c $t
+    ::potato::pueblo::render $c $spawn
+    ::potato::pueblo::images::collect
+    waitFor {[dict size $::potato::pueblo::images::jobs]==0}
+    if {[dict size $::potato::pueblo::images::photos] || $::potato::pueblo::images::totalPixels} {error {Stress image allocations leaked}}
+    if {[llength [$t tag names]]>$tagLimit || [llength [$spawn tag names]]>$tagLimit} {error {Stress transcript tags grew after cleanup}}
+    if {$cycle%10==0} {
+        set ::beatRunning 0
+        after cancel $::beatTimer
+        waitFor {[dict size $::pending]==0}
+        ::potato::disconnect $c 0
+        ::potato::reconnect $c
+        waitFor {[dict get $::potato::pueblo::state($c) active]}
+        set ::beatRunning 1
+        beat [clock milliseconds]
+        record STRESS reconnect $cycle
+    }
+    resources $cycle
+    incr cycle
+}
+record STRESS cycles $cycle
+record BEGIN recovered_idle
+set idleDone 0
+after 3000 {set idleDone 1}
+vwait idleDone
+resources recovered
+dict for {name value} $::totalTimings {record TOTALHOT $name $value [dict get $::totalCalls $name]}
 set ::beatRunning 0
+after cancel $::beatTimer
 waitFor {[dict size $::pending]==0}
 record BEGIN fragmented_input
 puts $::peer PERF-FRAGMENT

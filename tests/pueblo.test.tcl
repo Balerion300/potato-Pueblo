@@ -154,6 +154,12 @@ wm geometry . 180x450
 update
 ::potato::pueblo::images::collect
 assert {[image width $display] < $oldWidth} "image adapts to narrower widget"
+::potato::pueblo::images::collect
+set collectors 0
+foreach pending [after info] {
+    if {[lindex [after info $pending] 0] eq "::potato::pueblo::images::collect"} {incr collectors}
+}
+assert {$collectors==1} "explicit collection keeps one cleanup timer"
 wm geometry . 700x450
 update
 ::potato::pueblo::images::collect

@@ -50,7 +50,7 @@ proc ::potato::pueblo::images::pump {} {
             --max-filesize 8388608 --proto =http,https --noproxy * --url $url 2>@1]
         if {[catch {open $command r} channel]} {continue}
         fconfigure $channel -blocking 0 -translation binary -encoding binary
-        dict set jobs $channel [dict create key $key data ""]
+        dict set jobs $channel [dict create key $key chunks {} bytes 0]
         fileevent $channel readable [list ::potato::pueblo::images::readable $channel]
     }
 }
@@ -61,8 +61,14 @@ proc ::potato::pueblo::images::readable {channel} {
     set key [dict get $jobs $channel key]
     if {![alive $key]} {finish $channel 0; return}
     if {[catch {read $channel 65536} chunk]} {finish $channel 0; return}
-    dict set jobs $channel data "[dict get $jobs $channel data]$chunk"
-    if {[string length [dict get $jobs $channel data]] > 8388608} {finish $channel 0; return}
+    set bytes [expr {[dict get $jobs $channel bytes]+[string length $chunk]}]
+    if {$bytes > 8388608} {finish $channel 0; return}
+    # Keep bounded chunks until completion instead of copying an increasingly
+    # large buffer on every readable callback. Join once for image decoding.
+    dict update jobs $channel job {
+        dict set job bytes $bytes
+        if {$chunk ne ""} {dict lappend job chunks $chunk}
+    }
     if {[eof $channel]} {finish $channel 1}
 }
 
@@ -76,7 +82,7 @@ proc ::potato::pueblo::images::finish {channel success} {
     # curl has its own hard timeout, including after the owning view disappears.
     catch {close $channel}
     if {$success && [alive [dict get $job key]]} {
-        catch {install [dict get $job key] [dict get $job data]}
+        catch {install [dict get $job key] [join [dict get $job chunks] ""]}
     }
     after idle ::potato::pueblo::images::pump
 }
@@ -157,6 +163,9 @@ proc ::potato::pueblo::images::collect {} {
     variable jobs
     variable totalPixels
     variable timer
+    # Explicit collection (including view/layout changes) must not leave a
+    # second scheduled collector behind.
+    if {$timer ne ""} {after cancel $timer}
     set timer ""
     foreach channel [dict keys $jobs] {
         if {![alive [dict get $jobs $channel key]]} {finish $channel 0}

@@ -5,6 +5,7 @@ import struct
 import threading
 import time
 import zlib
+import random
 
 
 class Server(socketserver.ThreadingTCPServer):
@@ -56,17 +57,26 @@ class Fixture:
 
         pixels = b''.join(b'\0' + b''.join(bytes((212, 176, 96) if 20 <= x < 280 and 20 <= y < 130 else (40, 80, 128)) for x in range(300)) for y in range(150))
         png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('!IIBBBBB', 300, 150, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(pixels)) + chunk(b'IEND', b'')
+        noise = random.Random(1729)
+        large_pixels = b''.join(b'\0' + noise.randbytes(1024*3) for _ in range(768))
+        large_png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('!IIBBBBB', 1024, 768, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(large_pixels)) + chunk(b'IEND', b'')
 
         class HTTP(http.server.BaseHTTPRequestHandler):
             def do_GET(self):
-                if self.path != '/pic.png':
+                if self.path not in ('/pic.png', '/pic.png?bad', '/pic.png?slow', '/pic.png?large'):
                     self.send_error(404)
                     return
+                if self.path.endswith('?slow'):
+                    time.sleep(2)
+                data = b'not an image' if self.path.endswith('?bad') else (large_png if self.path.endswith('?large') else png)
                 self.send_response(200)
                 self.send_header('Content-Type', 'image/png')
-                self.send_header('Content-Length', str(len(png)))
+                self.send_header('Content-Length', str(len(data)))
                 self.end_headers()
-                self.wfile.write(png)
+                try:
+                    self.wfile.write(data)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass  # Cancellation is deliberately exercised by the soak.
 
             def log_message(self, *args):
                 pass

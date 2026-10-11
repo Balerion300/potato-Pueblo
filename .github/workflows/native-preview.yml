@@ -91,14 +91,14 @@ jobs:
           path: artifacts/*.zip
           if-no-files-found: error
       - name: Diagnostic workload and resource monitoring
-        timeout-minutes: 8
+        timeout-minutes: 18
         run: |
           python3 -m venv .build/benchmark-env
           .build/benchmark-env/bin/python -m pip install psutil==7.1.0
           if [ "$RUNNER_OS" = Linux ]; then
-            xvfb-run -a .build/benchmark-env/bin/python scripts/benchmark.py
+            xvfb-run -a .build/benchmark-env/bin/python scripts/benchmark.py --stress-seconds 600
           else
-            .build/benchmark-env/bin/python scripts/benchmark.py
+            .build/benchmark-env/bin/python scripts/benchmark.py --stress-seconds 600
           fi
       - uses: actions/upload-artifact@v4
         if: always()
@@ -157,9 +157,9 @@ jobs:
           path: artifacts/*.zip
           if-no-files-found: error
       - name: Diagnostic workload and resource monitoring
-        timeout-minutes: 8
+        timeout-minutes: 18
         shell: msys2 {0}
-        run: python scripts/benchmark.py
+        run: python scripts/benchmark.py --stress-seconds 600
       - uses: actions/upload-artifact@v4
         if: always()
         with:
