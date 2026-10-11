@@ -15,6 +15,9 @@ cd "$build_root/openssl-source"
 make -j4
 make install_sw
 cd "$build_root/tcltls"
+# Supply the pinned Git identity directly; the upstream release's manifest
+# recipe contains shell-invalid @ prefixes inside a continued command.
+printf 'git-%s\n' "$(git rev-parse HEAD)" > manifest.uuid
 export TCL_LIBRARY="$runtime_root/lib/tcl8.6"
 ./configure --prefix="$runtime_root" --with-tcl="$runtime_root/lib" \
     --with-openssl-dir="$openssl_root" --enable-static-ssl --enable-shared --enable-64bit

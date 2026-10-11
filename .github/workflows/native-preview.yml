@@ -72,6 +72,8 @@ jobs:
             .build/runtime/bin/wish8.6 tests/run.tcl tests/pueblo.test.tcl
             .build/runtime/bin/wish8.6 tests/run.tcl tests/client.test.tcl
           fi
+      - name: Check portable TLS dependencies
+        run: python3 scripts/check-tls-deps.py
       - name: Package native preview
         # SSL is tested again after extraction, without the build runtime.
         run: python3 scripts/package-preview.py

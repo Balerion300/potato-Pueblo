@@ -53,12 +53,20 @@ These tests exercise the portable native runtime; they do not prove the old
 upstream Mac application bundle works. Native desktop user acceptance is still
 required, particularly for downloaded-file security prompts and appearance.
 
-Game SSL availability is reported separately by the complete-client tests.
-The current packages have no usable TclTLS library on Apple Silicon or Linux;
-those previews support ordinary game connections and HTTPS image downloads,
-but cannot yet connect to the game's SSL port. Intel Mac and Windows load the
-legacy bundled TclTLS library. Automated loopback connection checks use plain
-TCP, so they must not be cited as SSL connection tests.
+Unix previews now build TclTLS 2.0.1 with statically linked OpenSSL 3.5.9 from
+pinned sources. Apple Silicon/Intel Mac and Linux require no separately installed
+SSL package. Windows retains its existing bundled TclTLS library. TLS build
+identity and licenses are included in each Unix runtime. Game connections disable
+obsolete protocols and send SNI. Existing self-signed-server compatibility is
+preserved: game encryption does not validate the server certificate; HTTPS image
+downloads continue to validate certificates through curl.
+
+The explicitly invoked `tests/ssl.test.tcl` uses the full client to connect to
+`bod.westeros.org:3001`, check the negotiated cipher, receive the greeting, send
+Pueblo negotiation, receive the response, disconnect and reconnect. It does not
+log in or modify the game. Extracted-package verification runs this test with a
+fresh profile and the build runtime unavailable. Unlike the ordinary loopback
+fixtures, this is a real SSL interoperability check and requires network access.
 
 Download the ZIP for your platform from the successful GitHub Actions run.
 Mac: use `Start Potato Pueblo.command`; Windows/Linux: use the included Start

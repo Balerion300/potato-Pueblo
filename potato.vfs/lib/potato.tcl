@@ -3267,6 +3267,10 @@ proc ::potato::connectVerifySSL {option args} {
 			set cb($major) $minor
 			#puts "TLS/$chan: $major/$minor: $state"
 		}
+		"message" - "session" {
+			# TclTLS 2 adds informational notifications; no session cache.
+			return;
+		}
 		default {
 			return -code error "bad option \"$option\": must be one of error, info, or verify"
 		}
