@@ -198,6 +198,11 @@ assert {[string first {pueblo,enabled} $saved]>=0} "saved per-world Pueblo setti
 ::potato::disconnect $c 0
 close $::peer
 if {[info exists server]} {close $server}
+if {[info exists ::env(POTATO_TEST_RESULT)]} {
+    set receipt [open $::env(POTATO_TEST_RESULT) w]
+    puts $receipt "PASS: $::checks; Tcl [info patchlevel]; Tk [package present Tk]"
+    close $receipt
+}
 puts "PASS: $::checks full-client checks (Tcl [info patchlevel], Tk [package present Tk], [tk windowingsystem])"
 after cancel $testDeadline
 destroy .

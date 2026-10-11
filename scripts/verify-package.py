@@ -41,14 +41,26 @@ with tempfile.TemporaryDirectory(prefix="potato-extracted-preview-") as extracte
                    POTATO_TEST_FIXTURE=str(root / "tests/client.test.tcl"))
         env.pop("TCL_LIBRARY", None)
         env.pop("TK_LIBRARY", None)
-        command = [str(executable)]
+        receipt = pathlib.Path(profile) / "test-result.txt"
+        env["POTATO_TEST_RESULT"] = str(receipt)
+        command = ["open", "-W", "-n", "-a", str(contents.parent)]
     build_runtime = root / ".build/runtime"
     hidden_runtime = root / ".build/runtime-not-for-package-tests"
     build_runtime.rename(hidden_runtime)
     try:
         with Fixture() as fixture:
             env.update(fixture.environment())
-            subprocess.run(command, env=env, cwd=package, check=True, timeout=60)
+            if platform.system() == "Darwin":
+                # Use the same LaunchServices path as a Finder double-click.
+                # open's exit code is not the app's result: require a test receipt.
+                for key, value in env.items():
+                    if key.startswith("POTATO_"):
+                        command.extend(["--env", f"{key}={value}"])
+            subprocess.run(command, env=env, cwd=package, check=True, timeout=90)
+            if platform.system() == "Darwin":
+                result = receipt.read_text() if receipt.exists() else "No full-client result receipt"
+                print(result)
+                assert result.strip() == "PASS: 15; Tcl 8.6.18; Tk 8.6.18", result
     finally:
         hidden_runtime.rename(build_runtime)
 print("PASS: extracted packaged client, isolated profile, build runtime unavailable")
