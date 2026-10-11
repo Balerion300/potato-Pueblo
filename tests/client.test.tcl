@@ -1,5 +1,12 @@
 # Full Potato startup and transcript integration, with a fresh explicit profile.
 package require Tk 8.6
+proc testBackgroundError {message options} {
+    puts stderr "BACKGROUND ERROR: [dict get $options -errorinfo]"
+    exit 1
+}
+interp bgerror {} testBackgroundError
+rename tk_messageBox nativeMessageBox
+proc tk_messageBox {args} {error "Unexpected modal dialog: $args"}
 set root [file normalize [file join [file dirname [info script]] ..]]
 if {![info exists ::env(POTATO_HOME)]} {error "Set POTATO_HOME to a fresh test directory"}
 file mkdir $::env(POTATO_HOME)
@@ -12,6 +19,7 @@ close $file
 set ::argv {}; set ::argc 0
 lappend ::auto_path [file join $root potato.vfs lib]
 source [file join $root potato.vfs main.tcl]
+puts "CHECK: complete client started"
 set ::checks 0
 proc assert {value message} {
     if {![uplevel 1 [list expr $value]]} {error "FAIL: $message"}
@@ -42,8 +50,10 @@ set w [::potato::addNewWorld Fixture 127.0.0.1 $port 1]
 foreach key {enabled commands images} {set ::potato::world($w,pueblo,$key) 1}
 set ::potato::world($w,spawnAll) {}
 ::potato::newConnection $w
+puts "CHECK: local connection opened"
 set c $::potato::potato(up)
 waitFor {[lsearch -exact $::wire {PUEBLOCLIENT 1.10}]>=0}
+waitFor {[dict get $::potato::pueblo::state($c) active]}
 set t $::potato::conn($c,textWidget)
 assert {$::potato::conn($c,connected)==1} "loopback connection"
 puts $::peer {<pre>Names<BR>}

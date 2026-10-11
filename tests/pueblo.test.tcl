@@ -67,6 +67,9 @@ assert {[plain [::potato::pueblo::parse 1 [tagged {<b>literal &amp;</b>}]]] eq {
 set ::potato::world(1,pueblo,enabled) 1
 ::potato::pueblo::reset 1
 assert {[plain [::potato::pueblo::parse 1 [tagged {<b>literal &amp;</b>}]]] eq {<b>literal &amp;</b>}} "unnegotiated passthrough"
+assert {[plain [::potato::pueblo::parse 1 [tagged {<incomplete}]]] eq {<incomplete}} "unnegotiated partial angle bracket passthrough"
+start
+assert {[plain [::potato::pueblo::parse 1 [tagged "<pre>A<BR>\r\nB</pre>"]]] eq "A\nB"} "PRE CRLF following BR"
 start
 ::potato::pueblo::parse 1 [tagged [string repeat < 9000]]
 assert {[llength [dict get $::potato::pueblo::state(1) pending]] <= 8192} "bounded partial tags"

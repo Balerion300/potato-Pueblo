@@ -98,6 +98,7 @@ proc ::potato::pueblo::parse {c tagged} {
         dict set state($c) offered 1
         ::potato::send_to_noparse $c {PUEBLOCLIENT 1.10} "" 0
     }
+    if {![dict get $state($c) offered]} {return $tagged}
     set items [concat [dict get $state($c) pending] $tagged]
     dict set state($c) pending {}
     set result {}
@@ -119,7 +120,10 @@ proc ::potato::pueblo::parse {c tagged} {
             }
             if {$end < 0} {
                 if {$count-$i <= 8192} {dict set state($c) pending [lrange $items $i end]; break}
-                text $c [list $item] result
+                # Advance the whole oversized token fragment, avoiding quadratic
+                # rescans when a hostile line contains thousands of '<' chars.
+                text $c [lrange $items $i [expr {$i+8192}]] result
+                incr i 8192
                 continue
             }
             if {[regexp -nocase {^</?xch_mudtext(?:\s|>)} $raw] && [dict get $state($c) offered]} {
@@ -200,7 +204,10 @@ proc ::potato::pueblo::parse {c tagged} {
             if {$j == $count && $count-$i < 32} {dict set state($c) pending [lrange $items $i end]; break}
         }
         if {$char in {\r \n}} {
-            if {[dict get $state($c) br]} {dict set state($c) br 0; continue}
+            if {[dict get $state($c) br]} {
+                dict set state($c) br [expr {$char eq "\r" ? 2 : 0}]
+                continue
+            }
             if {![dict get $state($c) pre]} {continue}
         } else {dict set state($c) br 0}
         lappend result [decorate $c $item]

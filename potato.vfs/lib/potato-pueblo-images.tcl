@@ -24,10 +24,14 @@ proc ::potato::pueblo::images::request {c widget tag} {
 
 proc ::potato::pueblo::images::alive {key} {
     variable seen
+    variable photos
     lassign $key widget tag
-    return [expr {[dict exists $seen $key] && [winfo exists $widget] &&
+    set alive [expr {[dict exists $seen $key] && [winfo exists $widget] &&
         [$widget tag ranges $tag] ne "" &&
         [::potato::pueblo::option [dict get $seen $key] images]}]
+    if {$alive && [dict exists $photos $key] &&
+        [lindex [dict get $photos $key] 1] ni [$widget image names]} {return 0}
+    return $alive
 }
 
 proc ::potato::pueblo::images::pump {} {
