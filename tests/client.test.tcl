@@ -80,6 +80,58 @@ puts $::peer {Trigger done}
 waitFor {[string first "Trigger done" [$t get 1.0 end]]>=0}
 assert {[string first "Trigger caption" [$t get 1.0 end]]<0} "caption trigger gag"
 set ::potato::world($w,events) {}
+# Exercise real image arrival in both main and spawn transcripts using only a
+# local HTTP fixture. The production URL validator is restored immediately.
+set photo [image create photo -width 300 -height 150]
+$photo put #285080 -to 0 0 300 150
+$photo put #d4b060 -to 20 20 280 130
+set ::fixturePNG [$photo data -format png]
+image delete $photo
+proc httpAccept {channel args} {
+    fconfigure $channel -translation binary -encoding binary -blocking 0
+    fileevent $channel readable [list httpReply $channel]
+}
+proc httpReply {channel} {
+    read $channel
+    fileevent $channel readable {}
+    puts -nonewline $channel "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: [string length $::fixturePNG]\r\nConnection: close\r\n\r\n$::fixturePNG"
+    close $channel
+}
+set httpServer [socket -server httpAccept -myaddr 127.0.0.1 0]
+set httpPort [lindex [fconfigure $httpServer -sockname] end]
+set ::fixtureURL "http://127.0.0.1:$httpPort/pic.png"
+rename ::potato::pueblo::url ::potato::pueblo::productionURL
+proc ::potato::pueblo::url {value} {return [expr {$value eq $::fixtureURL || [productionURL $value]}]}
+set ::potato::conn($c,spawnAll) {Images}
+set spawn [lindex [::potato::createSpawnWindow $c Images] 1]
+puts $::peer "<a xch_cmd=\"true\" href=\"portrait\"><img src=\"$::fixtureURL\" alt=\"Portrait\"></a>"
+waitFor {[llength [$t image names]]==1 && [llength [$spawn image names]]==1}
+assert {[llength [$t image names]]==1} "main transcript asynchronous image"
+assert {[llength [$spawn image names]]==1} "spawn transcript asynchronous image"
+set imageName [lindex [$t image names] 0]
+set imageAction ""
+foreach tag [$t tag names $imageName] {
+    if {[lindex $tag 0] eq "potatoAction" && [lindex $tag 4] eq "portrait"} {set imageAction $tag}
+}
+assert {$imageAction ne ""} "image inherits command link"
+$t see $imageName
+update
+lassign [$t bbox $imageName] x y width height
+event generate $t <Motion> -x [expr {$x+5}] -y [expr {$y+5}]
+event generate $t <ButtonPress-1> -x [expr {$x+5}] -y [expr {$y+5}]
+event generate $t <ButtonRelease-1> -x [expr {$x+5}] -y [expr {$y+5}]
+waitFor {[lsearch -exact $::wire portrait]>=0}
+assert {[lsearch -exact $::wire portrait]>=0} "native image command click"
+assert {[string first Portrait [$t get 1.0 end]]>=0} "full-client copy fallback"
+if {[info exists ::env(POTATO_TEST_SCREENSHOT)]} {
+    # The Python adapter supplies this command only for diagnostic captures.
+    update
+    captureScreenshot $::env(POTATO_TEST_SCREENSHOT)
+}
+rename ::potato::pueblo::url {}
+rename ::potato::pueblo::productionURL ::potato::pueblo::url
+close $httpServer
+set ::potato::conn($c,spawnAll) {}
 ::potato::pueblo::reset $c
 ::potato::pueblo::activate {*}[lrange $actionTag 1 end]
 after 30; update
@@ -87,6 +139,11 @@ assert {[llength [lsearch -all -exact $::wire look]]==1} "stale click after rese
 ::potato::configureWorld $w
 update
 assert {[llength [info commands ::potato::pueblo::parse]]==1} "configuration remains usable"
+set ::potato::world($w,temp) 0
+::potato::saveWorlds
+set f [open [lindex [glob -directory $::potato::path(world) Fixture-*.wld] 0] r]
+set saved [read $f]; close $f
+assert {[string first {pueblo,enabled} $saved]>=0} "saved per-world Pueblo setting"
 ::potato::disconnect $c 0
 close $::peer
 close $server

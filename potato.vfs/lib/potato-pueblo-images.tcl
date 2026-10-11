@@ -42,7 +42,7 @@ proc ::potato::pueblo::images::pump {} {
         set curl [auto_execok curl]
         if {$curl eq ""} {continue}
         # No shell, redirects, proxy environment, credentials, cookies or config.
-        set command [list | {*}$curl -q --silent --fail --max-time 15 --connect-timeout 5
+        set command [list | {*}$curl -q --silent --fail --max-time 15 --connect-timeout 5 \
             --max-filesize 8388608 --proto =http,https --noproxy * --url $url 2>@1]
         if {[catch {open $command r} channel]} {continue}
         fconfigure $channel -blocking 0 -translation binary -encoding binary
@@ -198,7 +198,8 @@ proc ::potato::pueblo::images::resize {key} {
     set atEnd [::potato::atEnd $widget]
     set anchor [$widget index @0,0]
     $display blank
-    $display configure -width 0 -height 0
+    $display configure -width [expr {int(ceil(double($width)/$factor))}] \
+        -height [expr {int(ceil(double($height)/$factor))}]
     $display copy $original -subsample $factor $factor
     incr totalPixels [expr {$newPixels-$pixels}]
     dict set photos $key [list $display $name $newPixels $hide $original $factor]

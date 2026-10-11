@@ -103,5 +103,63 @@ assert {[dict size $::potato::pueblo::images::photos] == 1} "tracked photo"
 assert {[dict size $::potato::pueblo::images::photos] == 0} "trim/clear releases photo"
 assert {$::potato::pueblo::images::totalPixels == 0} "image budget released"
 destroy .output
+# Run the real asynchronous curl transport against a loopback fixture. Only this
+# test temporarily admits its exact URL; no production setting enables loopback.
+set photo [image create photo -width 800 -height 400]
+$photo put #34689a -to 0 0 800 400
+set ::fixturePNG [$photo data -format png]
+image delete $photo
+proc httpAccept {channel args} {
+    fconfigure $channel -translation binary -encoding binary -blocking 0
+    fileevent $channel readable [list httpReply $channel]
+}
+proc httpReply {channel} {
+    read $channel
+    fileevent $channel readable {}
+    puts -nonewline $channel "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: [string length $::fixturePNG]\r\nConnection: close\r\n\r\n$::fixturePNG"
+    close $channel
+}
+set server [socket -server httpAccept -myaddr 127.0.0.1 0]
+set port [lindex [fconfigure $server -sockname] end]
+set ::fixtureURL "http://127.0.0.1:$port/pic.png"
+rename ::potato::pueblo::url ::potato::pueblo::productionURL
+proc ::potato::pueblo::url {value} {
+    return [expr {$value eq $::fixtureURL || [productionURL $value]}]
+}
+text .network -width 80 -height 15
+pack .network -expand 1 -fill both
+wm geometry . 700x450
+update
+set tag [list potatoImage 999 $::fixtureURL {}]
+.network insert end "[string repeat "Line before image\n" 25]" {}
+.network insert end {[Fixture URL fallback]} [list $tag]
+.network insert end "\nText after image\n" {}
+.network yview moveto 1.0
+update
+::potato::pueblo::images::request 1 .network $tag
+set deadline [expr {[clock milliseconds]+5000}]
+while {[llength [.network image names]]==0 && [clock milliseconds]<$deadline} {after 10; update}
+assert {[llength [.network image names]]==1} "actual asynchronous curl image download"
+assert {[::potato::atEnd .network]} "bottom follows image load"
+set key [list .network $tag]
+lassign [dict get $::potato::pueblo::images::photos $key] display
+set oldWidth [image width $display]
+wm geometry . 180x450
+update
+::potato::pueblo::images::collect
+assert {[image width $display] < $oldWidth} "image adapts to narrower widget"
+wm geometry . 700x450
+update
+::potato::pueblo::images::collect
+assert {[image width $display] == $oldWidth} "image restores size after widening"
+set ::potato::world(1,pueblo,images) 0
+::potato::pueblo::images::collect
+assert {[llength [.network image names]]==0} "image opt-out removes pixels"
+assert {[string first {[Fixture URL fallback]} [.network get 1.0 end]]>=0} "opt-out retains fallback"
+set ::potato::world(1,pueblo,images) 1
+close $server
+rename ::potato::pueblo::url {}
+rename ::potato::pueblo::productionURL ::potato::pueblo::url
+destroy .network
 puts "PASS: $::checks checks (Tcl [info patchlevel], Tk [package present Tk], [tk windowingsystem])"
 destroy .

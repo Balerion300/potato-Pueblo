@@ -5,6 +5,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: native-preview-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   unix:
     strategy:
@@ -20,17 +23,18 @@ jobs:
       - name: Build pinned Tcl/Tk 8.6.18
         run: bash scripts/build-runtime.sh
       - name: Native parser, images and complete client checks
+        timeout-minutes: 2
         shell: bash
         run: |
           export TCL_LIBRARY="$PWD/.build/runtime/lib/tcl8.6"
           export TK_LIBRARY="$PWD/.build/runtime/lib/tk8.6"
           export POTATO_HOME="$RUNNER_TEMP/potato-test-profile"
           if [ "$RUNNER_OS" = Linux ]; then
-            xvfb-run -a .build/runtime/bin/wish8.6 tests/pueblo.test.tcl
-            xvfb-run -a .build/runtime/bin/wish8.6 tests/client.test.tcl
+            xvfb-run -a .build/runtime/bin/wish8.6 tests/run.tcl tests/pueblo.test.tcl
+            xvfb-run -a .build/runtime/bin/wish8.6 tests/run.tcl tests/client.test.tcl
           else
-            .build/runtime/bin/wish8.6 tests/pueblo.test.tcl
-            .build/runtime/bin/wish8.6 tests/client.test.tcl
+            .build/runtime/bin/wish8.6 tests/run.tcl tests/pueblo.test.tcl
+            .build/runtime/bin/wish8.6 tests/run.tcl tests/client.test.tcl
           fi
       - name: Package native preview
         run: python3 scripts/package-preview.py
@@ -53,13 +57,14 @@ jobs:
         shell: msys2 {0}
         run: bash scripts/build-runtime.sh
       - name: Native parser, images and complete client checks
+        timeout-minutes: 2
         shell: msys2 {0}
         run: |
           export TCL_LIBRARY="$(cygpath -m "$PWD/.build/runtime/lib/tcl8.6")"
           export TK_LIBRARY="$(cygpath -m "$PWD/.build/runtime/lib/tk8.6")"
           export POTATO_HOME="$(cygpath -m "$RUNNER_TEMP/potato-test-profile")"
-          .build/runtime/bin/wish86.exe tests/pueblo.test.tcl
-          .build/runtime/bin/wish86.exe tests/client.test.tcl
+          .build/runtime/bin/wish86.exe tests/run.tcl tests/pueblo.test.tcl
+          .build/runtime/bin/wish86.exe tests/run.tcl tests/client.test.tcl
       - name: Package native preview
         shell: msys2 {0}
         run: python scripts/package-preview.py
