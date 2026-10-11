@@ -8190,7 +8190,7 @@ proc ::potato::build_menu_file {m} {
 		-command ::potato::showStats -state $state
 	$m add command {*}[menu_label [T "Show &MSSP Info"]] \
 		-command ::potato::showMSSP \
-		-state [expr {[llength $conn([up],telnet,mssp)] ? "normal" : "disabled"}]
+		-state [expr {[info exists conn([up],telnet,mssp)] && [llength $conn([up],telnet,mssp)] ? "normal" : "disabled"}]
 
 	$m add separator
 	createMenuTask $m exit
@@ -11483,6 +11483,8 @@ proc ::potato::timeFmt {seconds full} {
 proc ::potato::up {} {
 	variable potato;
 
+	# Aqua can preprocess menus before the first tab is selected.
+	if {$potato(up) eq ""} {return 0}
 	return $potato(up);
 
 };# ::potato::up

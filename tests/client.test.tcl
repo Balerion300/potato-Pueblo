@@ -60,6 +60,11 @@ proc waitFor {expression} {
 assert {$::potato::running == 1} "full client startup"
 set priorConnection $::potato::potato(up)
 set ::potato::potato(up) ""
+assert {[::potato::up]==0} "startup current connection reports system tab"
+menu .startupTestMenu -tearoff 0
+::potato::build_menu_file .startupTestMenu
+assert {[.startupTestMenu entrycget [expr {[.startupTestMenu index end]-2}] -state] eq "disabled"} "startup MSSP menu safely disabled"
+destroy .startupTestMenu
 assert {![::potato::taskState reconnect]} "Aqua startup reconnect menu without current tab"
 assert {![::potato::taskState disconnect]} "Aqua startup disconnect menu without current tab"
 assert {![::potato::taskState config]} "Aqua startup world configuration menu without current tab"

@@ -23,7 +23,7 @@ jobs:
         run: python3 scripts/report_platform.py
       - name: Linux build dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxft-dev libxss-dev libfontconfig1-dev xvfb
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxft-dev libxss-dev libfontconfig1-dev xvfb python3-venv
       - uses: actions/cache/restore@v4
         id: runtime
         with:
@@ -93,11 +93,12 @@ jobs:
       - name: Diagnostic workload and resource monitoring
         timeout-minutes: 5
         run: |
-          python3 -m pip install --user --break-system-packages psutil==7.1.0
+          python3 -m venv .build/benchmark-env
+          .build/benchmark-env/bin/python -m pip install psutil==7.1.0
           if [ "$RUNNER_OS" = Linux ]; then
-            xvfb-run -a python3 scripts/benchmark.py
+            xvfb-run -a .build/benchmark-env/bin/python scripts/benchmark.py
           else
-            python3 scripts/benchmark.py
+            .build/benchmark-env/bin/python scripts/benchmark.py
           fi
       - uses: actions/upload-artifact@v4
         with:
