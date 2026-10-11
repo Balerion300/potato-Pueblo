@@ -44,8 +44,9 @@ This is a plausible runtime remedy, not evidence that the reported Tahoe failure
 is fixed. Native Tahoe user acceptance is still required.
 
 Download the ZIP for your platform from the successful GitHub Actions run.
-Mac: open `Potato Pueblo Preview.app`; Windows/Linux: use the included Start
-launcher. Mac previews are ad-hoc signed, not notarized. Linux requires the
+Mac: use `Start Potato Pueblo.command`; Windows/Linux: use the included Start
+launcher. Mac previews use the native runtime directly; Finder app-bundle
+packaging remains unresolved. These previews are not notarized. Linux requires the
 desktop X11/font libraries. `curl` must be available for remote images.
 Preview launchers use their own profile directory and copy no existing worlds,
 passwords, startup scripts or preferences. `POTATO_HOME` can explicitly choose

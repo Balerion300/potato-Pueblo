@@ -24,47 +24,19 @@ with tempfile.TemporaryDirectory(prefix="potato-extracted-preview-") as extracte
                     if mode:
                         (destination / member.filename).chmod(mode)
     package = next(destination.rglob("BUILD.json")).parent
-    if platform.system() == "Darwin":
-        contents = package / "Potato Pueblo Preview.app" / "Contents"
-        resources = contents / "Resources"
-        executable = contents / "MacOS" / "Wish"
-        subprocess.run(["codesign", "--verify", "--deep", "--strict", str(contents.parent)], check=True)
-    else:
-        resources = package
-        executable = resources / "runtime" / "bin" / ("wish86s.exe" if platform.system() == "Windows" else "wish8.6")
+    resources = package
+    executable = resources / "runtime" / "bin" / ("wish86s.exe" if platform.system() == "Windows" else "wish8.6")
     env = dict(os.environ, TCL_LIBRARY=str(resources / "runtime/lib/tcl8.6"),
                TK_LIBRARY=str(resources / "runtime/lib/tk8.6"), POTATO_HOME=profile,
                POTATO_TEST_SOURCE_ROOT=str(resources))
     command = [str(executable), str(root / "tests/run.tcl"), str(root / "tests/client.test.tcl")]
-    if platform.system() == "Darwin":
-        env.update(POTATO_TEST_ENTRY=str(root / "tests/run.tcl"),
-                   POTATO_TEST_FIXTURE=str(root / "tests/client.test.tcl"))
-        env.pop("TCL_LIBRARY", None)
-        env.pop("TK_LIBRARY", None)
-        if os.environ.get("GITHUB_ACTIONS") == "true":
-            # Keep a GUI fixture awake on the unattended ephemeral runner.
-            subprocess.run(["defaults", "write", "org.westeros.potato-pueblo.preview",
-                            "NSAppSleepDisabled", "-bool", "YES"], check=True)
-        receipt = pathlib.Path(profile) / "test-result.txt"
-        env["POTATO_TEST_RESULT"] = str(receipt)
-        command = ["open", "-W", "-n", "-a", str(contents.parent)]
     build_runtime = root / ".build/runtime"
     hidden_runtime = root / ".build/runtime-not-for-package-tests"
     build_runtime.rename(hidden_runtime)
     try:
         with Fixture() as fixture:
             env.update(fixture.environment())
-            if platform.system() == "Darwin":
-                # Use the same LaunchServices path as a Finder double-click.
-                # open's exit code is not the app's result: require a test receipt.
-                for key, value in env.items():
-                    if key.startswith("POTATO_"):
-                        command.extend(["--env", f"{key}={value}"])
-            subprocess.run(command, env=env, cwd=package, check=True, timeout=90)
-            if platform.system() == "Darwin":
-                result = receipt.read_text() if receipt.exists() else "No full-client result receipt"
-                print(result)
-                assert result.strip() == "PASS: 15; Tcl 8.6.18; Tk 8.6.18", result
+            subprocess.run(command, env=env, cwd=package, check=True, timeout=60)
     finally:
         hidden_runtime.rename(build_runtime)
 print("PASS: extracted packaged client, isolated profile, build runtime unavailable")
