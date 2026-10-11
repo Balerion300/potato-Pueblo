@@ -1166,7 +1166,8 @@ proc ::potato::configureWorld {{w ""} {autosave 0}} {
 	if { $autosave } {
 		$inner.btm.button.ok invoke
 	} else {
-		update
+		# Finish layout without draining a connected Aqua socket event loop.
+		update idletasks
 		reshowWindow $win 0
 	}
 
