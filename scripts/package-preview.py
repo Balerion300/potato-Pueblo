@@ -26,22 +26,28 @@ if system == "Darwin":
     resources.mkdir(parents=True)
     plist = dict(CFBundleName="Potato Pueblo Preview", CFBundleDisplayName="Potato Pueblo Preview",
                  CFBundleIdentifier="org.westeros.potato-pueblo.preview", CFBundleVersion="1",
-                 CFBundleShortVersionString="0.1", CFBundleExecutable="Potato-Pueblo",
+                 CFBundleShortVersionString="0.1", CFBundleExecutable="Wish",
+                 CFBundleInfoDictionaryVersion="6.0",
                  CFBundlePackageType="APPL", NSHighResolutionCapable=True,
                  LSMinimumSystemVersion="13.0",
                  NSLocalNetworkUsageDescription="Connect to MUSH games hosted on your local network.")
     (contents / "Info.plist").write_bytes(plistlib.dumps(plist))
-    launcher = binaries / "Potato-Pueblo"
     shutil.copy2(runtime / "bin" / "wish8.6", binaries / "Wish")
-    launcher.write_text('''#!/bin/sh
-set -eu
-resources="$(cd "$(dirname "$0")/../Resources" && pwd)"
-export TCL_LIBRARY="$resources/runtime/lib/tcl8.6"
-export TK_LIBRARY="$resources/runtime/lib/tk8.6"
-export POTATO_HOME="${POTATO_HOME:-$HOME/Library/Application Support/Potato-Pueblo-Preview}"
-exec "$(dirname "$0")/Wish" "$resources/potato.vfs/main.tcl" "$@"
+    # Use Wish's supported native AppMain entry point, rather than a shell as
+    # CFBundleExecutable. Tcl also finds its libraries relative to Contents/MacOS.
+    (contents / "lib").symlink_to("Resources/runtime/lib", target_is_directory=True)
+    scripts = resources / "Scripts"
+    scripts.mkdir()
+    (scripts / "AppMain.tcl").write_text('''if {[info exists ::env(POTATO_TEST_ENTRY)]} {
+    set ::argv [list $::env(POTATO_TEST_FIXTURE)]
+    source $::env(POTATO_TEST_ENTRY)
+} else {
+    if {![info exists ::env(POTATO_HOME)] || $::env(POTATO_HOME) eq ""} {
+        set ::env(POTATO_HOME) [file join $::env(HOME) Library {Application Support} Potato-Pueblo-Preview]
+    }
+    source [file join [file dirname [info script]] .. potato.vfs main.tcl]
+}
 ''')
-    launcher.chmod(0o755)
 else:
     resources = destination
     if system == "Windows":
