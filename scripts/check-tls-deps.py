@@ -4,7 +4,7 @@ import platform
 import subprocess
 
 root = pathlib.Path(__file__).resolve().parents[1]
-libraries = [p for p in (root / ".build/runtime/lib").glob("tls2.0.1/libtls*")
+libraries = [p for p in (root / ".build/runtime/lib").glob("tcltls2.0.1/libtls*")
              if p.suffix in (".so", ".dylib")]
 if len(libraries) != 1:
     raise RuntimeError(f"Expected one bundled TLS extension, found {libraries}")

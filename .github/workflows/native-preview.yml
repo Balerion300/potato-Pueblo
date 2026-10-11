@@ -41,11 +41,11 @@ jobs:
         id: tls
         with:
           path: |
-            .build/runtime/lib/tls2.0.1
+            .build/runtime/lib/tcltls2.0.1
             .build/runtime/TclTLS-LICENSE.txt
             .build/runtime/OpenSSL-LICENSE.txt
             .build/runtime/TLS-BUILD.txt
-          key: potato-tls-2.0.1-openssl-3.5.9-${{ matrix.os }}-${{ runner.arch }}-v1
+          key: potato-tls-2.0.1-openssl-3.5.9-${{ matrix.os }}-${{ runner.arch }}-v2
       - name: Build portable TclTLS and static OpenSSL
         if: steps.tls.outputs.cache-hit != 'true'
         run: bash scripts/build-tls.sh
@@ -53,11 +53,11 @@ jobs:
         if: steps.tls.outputs.cache-hit != 'true'
         with:
           path: |
-            .build/runtime/lib/tls2.0.1
+            .build/runtime/lib/tcltls2.0.1
             .build/runtime/TclTLS-LICENSE.txt
             .build/runtime/OpenSSL-LICENSE.txt
             .build/runtime/TLS-BUILD.txt
-          key: potato-tls-2.0.1-openssl-3.5.9-${{ matrix.os }}-${{ runner.arch }}-v1
+          key: potato-tls-2.0.1-openssl-3.5.9-${{ matrix.os }}-${{ runner.arch }}-v2
       - name: Native parser, images and complete client checks
         timeout-minutes: 2
         shell: bash
