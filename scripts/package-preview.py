@@ -39,6 +39,9 @@ if system == "Darwin":
     scripts = resources / "Scripts"
     scripts.mkdir()
     (scripts / "AppMain.tcl").write_text('''if {[info exists ::env(POTATO_TEST_ENTRY)]} {
+    if {![string match "$::env(POTATO_TEST_SOURCE_ROOT)/*" [file normalize [info library]]]} {
+        error "Packaged Tcl library was not loaded from the app"
+    }
     set ::argv [list $::env(POTATO_TEST_FIXTURE)]
     source $::env(POTATO_TEST_ENTRY)
 } else {
