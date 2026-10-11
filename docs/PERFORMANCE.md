@@ -15,6 +15,8 @@ Pueblo input, 1,000 outgoing commands, bounded scrollback, and ten reconnects.
 It fails on lost/duplicated lines or commands, background errors, failed image
 reclamation, changed fragmented text, unbounded configured scrollback, or failed
 reconnection. Native integration and real SSL checks run separately.
+Five separate native launches with fresh profiles also exercise every real menu
+callback and require an explicit completion receipt before the workload starts.
 
 The JSON records actual build/OS identity, incoming bytes and read calls,
 end-to-end transcript throughput, local command echo latency, 50 ms timer

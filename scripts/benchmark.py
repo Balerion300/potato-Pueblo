@@ -43,6 +43,17 @@ with tempfile.TemporaryDirectory(prefix="potato-benchmark-") as folder, Fixture(
                TK_LIBRARY=str(package / "runtime/lib/tk8.6"), POTATO_HOME=str(folder / "profile"),
                POTATO_TEST_SOURCE_ROOT=str(root if args.source else package), POTATO_PERF_EVENTS=str(events))
     with (folder / "process.log").open("w") as log:
+        for trial in range(5):
+            receipt = folder / f"startup-{trial}.txt"
+            startup_env = dict(env, POTATO_HOME=str(folder / f"startup-profile-{trial}"),
+                               POTATO_TEST_RESULT=str(receipt))
+            startup = subprocess.run([str(executable), str(root / "tests/run.tcl"), str(root / "tests/startup.tcl")],
+                                     env=startup_env, cwd=package, stdout=log, stderr=log, timeout=60)
+            outcome = receipt.read_text() if receipt.exists() else "No startup completion receipt"
+            if startup.returncode or outcome.strip() != "PASS":
+                args.output.parent.mkdir(parents=True, exist_ok=True)
+                args.output.write_text(json.dumps(dict(build=identity, status="FAIL", startup_trial=trial, error=outcome), indent=2))
+                raise RuntimeError(f"Native startup {trial} failed: {outcome}")
         process = subprocess.Popen([str(executable), str(root / "tests/run.tcl"), str(root / "tests/performance.tcl")],
                                    env=env, cwd=package, stdout=log, stderr=log)
         tracked = psutil.Process(process.pid)
@@ -104,7 +115,7 @@ for row in text.splitlines():
         outgoing = dict(elapsed_ms=float(ms), bytes=int(size), commands=int(count),
                         throughput_kib_s=int(size)/1024/(float(ms)/1000),
                         round_trip=distribution([float(v) for v in rtts.split(",") if v]))
-result = dict(build=identity, status="PASS", working_source=args.source, platform=platform.platform(),
+result = dict(build=identity, status="PASS", startup_trials=5, working_source=args.source, platform=platform.platform(),
               elapsed_seconds=samples[-1]["seconds"], peak_rss_bytes=max(s["rss"] for s in samples),
               cpu_seconds=samples[-1]["cpu_seconds"], phases=phases, samples=samples, outgoing=outgoing,
               cleanup=[r for r in text.splitlines() if r.startswith(("CLEAN\t", "SOAK\t", "IMAGES\t", "RECONNECT\t"))])
