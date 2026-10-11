@@ -58,6 +58,12 @@ proc waitFor {expression} {
     }
 }
 assert {$::potato::running == 1} "full client startup"
+set priorConnection $::potato::potato(up)
+set ::potato::potato(up) ""
+assert {![::potato::taskState reconnect]} "Aqua startup reconnect menu without current tab"
+assert {![::potato::taskState disconnect]} "Aqua startup disconnect menu without current tab"
+assert {![::potato::taskState config]} "Aqua startup world configuration menu without current tab"
+set ::potato::potato(up) $priorConnection
 set ::wire {}
 proc accept {channel address port} {
     set ::peer $channel

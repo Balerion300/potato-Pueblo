@@ -12431,6 +12431,9 @@ proc ::potato::taskState {task {c ""}} {
 	if { $c eq "" } {
 		set c [up]
 	}
+	# Aqua can preprocess menus before the first tab has been created.
+	# An empty current connection is the same as the offline tab for actions.
+	if {$c eq ""} {set c 0}
 
 	if { ![taskExists $task] } {
 		return 0; # unknown task
