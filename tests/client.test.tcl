@@ -48,10 +48,19 @@ proc receive {channel} {
 }
 set server [socket -server accept -myaddr 127.0.0.1 0]
 set port [lindex [fconfigure $server -sockname] end]
+proc testTrace {command args} {puts "TRACE: [lindex $command 0] [lindex $args end]"; flush stdout}
+foreach name {::potato::addNewWorld ::potato::saveWorlds ::potato::connZero ::potato::newConnection ::potato::makeTextFrames ::potato::showConn ::potato::connect ::potato::ioOpen ::potato::connectVerify ::potato::connectComplete ::skin::potato::import ::skin::potato::show} {
+    trace add execution $name {enter leave} testTrace
+}
+set connectionDeadline [after 10000 {puts stderr "FAIL: local connection did not complete in 10 seconds"; exit 1}]
 set w [::potato::addNewWorld Fixture 127.0.0.1 $port 1]
 foreach key {enabled commands images} {set ::potato::world($w,pueblo,$key) 1}
 set ::potato::world($w,spawnAll) {}
 ::potato::newConnection $w
+after cancel $connectionDeadline
+foreach name {::potato::addNewWorld ::potato::saveWorlds ::potato::connZero ::potato::newConnection ::potato::makeTextFrames ::potato::showConn ::potato::connect ::potato::ioOpen ::potato::connectVerify ::potato::connectComplete ::skin::potato::import ::skin::potato::show} {
+    trace remove execution $name {enter leave} testTrace
+}
 puts "CHECK: local connection opened"
 set c $::potato::potato(up)
 waitFor {[lsearch -exact $::wire {PUEBLOCLIENT 1.10}]>=0}
