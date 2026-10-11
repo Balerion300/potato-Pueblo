@@ -3041,7 +3041,7 @@ proc ::potato::connect {c first} {
 			# The '1' below used to be checking for TLS >= 1.6, but I don't recall what changed between 1.5 and 1.6
 			# to necessitate it. Since we now require at least 1.6.7, it's left in like this, with those note so I
 			# remember to look it up later.
-			if { [catch {::tls::import $fid -command ::potato::connectVerifySSL -request 0 -cipher "ALL"} import] || \
+			if { [catch {::tls::import $fid -command ::potato::connectVerifySSL -request 0 -cipher "ALL" -ssl2 0 -ssl3 0 -tls1 0 -tls1.1 0 -tls1.2 1 -servername $host} import] || \
 				(1 && [catch {fconfigure $fid -blocking 0 -buffering none} fconfig]) || \
 				[catch {::tls::handshake $fid} handshake] } {
 				set sslError "Unknown SSL Error";# do not translate
@@ -3667,9 +3667,13 @@ proc ::potato::get_mushage {c} {
 	}
 
 	append conn($c,outputBuffer) $text
-	while { [set nextNewline [string first $conn($c,id,lineending) $conn($c,outputBuffer)]] > -1 } {
-		set toProcess [encoding convertfrom $conn($c,id,encoding) [string range $conn($c,outputBuffer) 0 [expr {$nextNewline-1}]]]
-		set conn($c,outputBuffer) [string range $conn($c,outputBuffer) [expr {$nextNewline+$conn($c,id,lineending,length)}] end]
+	# PennMUSH's Pueblo response uses LF even on a CRLF MUSH connection.
+	# Accept both forms; retain the configured ending for outgoing commands.
+	while { [set nextNewline [string first "\n" $conn($c,outputBuffer)]] > -1 } {
+		set rawLine [string range $conn($c,outputBuffer) 0 [expr {$nextNewline-1}]]
+		if {[string index $rawLine end] eq "\r"} {set rawLine [string range $rawLine 0 end-1]}
+		set toProcess [encoding convertfrom $conn($c,id,encoding) $rawLine]
+		set conn($c,outputBuffer) [string range $conn($c,outputBuffer) [expr {$nextNewline+1}] end]
 		get_mushageProcess $c $toProcess
 	}
 	return;

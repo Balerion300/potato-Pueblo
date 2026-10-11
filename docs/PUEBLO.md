@@ -13,6 +13,11 @@ Literal/entity tabs survive; a BR followed by its transport newline does not
 double-space PRE output. The server's Pueblo greeting gets one PUEBLOCLIENT reply
 per connection. Ordinary output remains literal before negotiation or when
 Pueblo is off. This is not a general HTML browser or complete MXP implementation.
+`<xch_mudtext>` selects literal text; `</xch_mudtext>` selects markup, matching
+PennMUSH's actual negotiation response. Mode-only IMG messages stay invisible.
+Incoming CRLF and LF lines are both accepted, including through Telnet buffering.
+Game SSL connections explicitly select TLS 1.2 and send the server hostname,
+including when using the legacy bundled TclTLS library.
 
 PNG and the first frame of GIF use Tk's built-in decoder. JPEG requires the
 optional Tcl **Img** package; without it the clickable fallback remains visible.

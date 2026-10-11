@@ -127,7 +127,8 @@ proc ::potato::pueblo::parse {c tagged} {
                 continue
             }
             if {[regexp -nocase {^</?xch_mudtext(?:\s|>)} $raw] && [dict get $state($c) offered]} {
-                dict set state($c) active [expr {![string match {</*} $raw]}]
+                # MUDTEXT encloses literal text; its closing tag enters HTML.
+                dict set state($c) active [string match {</*} $raw]
                 dict set state($c) action {}
                 dict set state($c) styles {}
                 dict set state($c) pre 0
@@ -170,6 +171,8 @@ proc ::potato::pueblo::parse {c tagged} {
                 }
                 img {
                     set src [get $attrs src]
+                    # Pueblo uses IMG without SRC for mode-control messages.
+                    if {$src eq ""} {continue}
                     set alt [get $attrs alt Image]
                     set fallback "\[$alt: $src\]"
                     set base [lindex [decorate $c $item] 1]

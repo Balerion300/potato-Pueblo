@@ -22,7 +22,7 @@ class Fixture:
             def handle(self):
                 fixture.game = self.wfile
                 fixture.game_ready.set()
-                self.wfile.write(b'This world is Pueblo 1.10 Enhanced.\r\n<xch_mudtext>\r\n')
+                self.wfile.write(b'This world is Pueblo 1.10 Enhanced.\r\n</xch_mudtext><img xch_mode=purehtml><xch_page clear=text>\n')
                 self.wfile.flush()
                 for line in self.rfile:
                     if not fixture.control_ready.wait(5):

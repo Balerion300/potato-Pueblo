@@ -24,11 +24,14 @@ proc assert {value message} {
 proc start {} {
     ::potato::pueblo::reset 1
     ::potato::pueblo::parse 1 [tagged {This world is Pueblo 1.10 Enhanced.}]
-    ::potato::pueblo::parse 1 [tagged {<xch_mudtext>}]
+    ::potato::pueblo::parse 1 [tagged {</xch_mudtext><img xch_mode=purehtml><xch_page clear=text>}]
 }
 set ::checks 0
 start
 assert {[lindex $::sent end] eq "PUEBLOCLIENT 1.10"} negotiation
+assert {[plain [::potato::pueblo::parse 1 [tagged {<img xch_mode=purehtml><xch_page clear=text>}]]] eq ""} "PennMUSH mode controls are invisible"
+assert {[plain [::potato::pueblo::parse 1 [tagged "<xch_mudtext><b>literal</b> &amp;\n"]]] eq "<b>literal</b> &amp;\n"} "opening MUDTEXT restores literal output"
+assert {[plain [::potato::pueblo::parse 1 [tagged {</xch_mudtext><b>caption</b>}]]] eq "caption"} "closing MUDTEXT enters HTML"
 set fixture {<pre>  Name&#9;House<BR>
 <a xch_cmd="true" href="look &amp; say {hi}; [exec bad]">http://caption.example.org</a><br>
 <a href="https://www.example.org/path?a=1&amp;b=2">Website</a><img src="https://www.example.org/pic.png" alt="Portrait"></pre>}

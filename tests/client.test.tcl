@@ -59,13 +59,13 @@ assert {$::potato::running == 1} "full client startup"
 set ::wire {}
 proc accept {channel address port} {
     set ::peer $channel
-    fconfigure $channel -translation crlf -blocking 0 -buffering line
+    fconfigure $channel -translation lf -blocking 0 -buffering line
     fileevent $channel readable [list receive $channel]
     after 20 [list puts $channel {This world is Pueblo 1.10 Enhanced.}]
-    after 30 [list puts $channel {<xch_mudtext>}]
+    after 30 [list puts $channel {</xch_mudtext><img xch_mode=purehtml><xch_page clear=text>}]
 }
 proc receive {channel} {
-    while {[gets $channel line]>=0} {lappend ::wire $line}
+    while {[gets $channel line]>=0} {lappend ::wire [string trimright $line \r]}
 }
 if {[info exists ::env(POTATO_FIXTURE_GAME_PORT)]} {
     set port $::env(POTATO_FIXTURE_GAME_PORT)

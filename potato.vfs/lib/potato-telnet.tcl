@@ -113,15 +113,16 @@ proc ::potato::telnet::bufferGet {c} {
 	upvar ::potato::conn conn;
 	upvar ::potato::world world;
 
-	if { [set linebreak [string last $conn($c,id,lineending) $conn($c,telnet,buffer,line)]] == -1 } {
+	# Pueblo output can use LF on an otherwise CRLF connection.
+	if { [set linebreak [string last "\n" $conn($c,telnet,buffer,line)]] == -1 } {
 		return; # no complete lines
 	} else {
-		set retval [string range $conn($c,telnet,buffer,line) 0 [expr {$linebreak+$conn($c,id,lineending,length)-1}]];# includes the lineending
-		set conn($c,telnet,buffer,line) [string range $conn($c,telnet,buffer,line) "$linebreak+$conn($c,id,lineending,length)" end]
+		set retval [string range $conn($c,telnet,buffer,line) 0 $linebreak];# includes LF and any preceding CR
+		set conn($c,telnet,buffer,line) [string range $conn($c,telnet,buffer,line) [expr {$linebreak+1}] end]
 		if { $retval ne "" && $conn($c,telnet,afterPrompt) } {
 			set conn($c,telnet,afterPrompt) 0
-			if { $world($conn($c,world),telnet,prompt,ignoreNewline) && [string first $conn($c,id,lineending) $retval] == 0 } {
-				set retval [string range $retval $conn($c,id,lineending,length) end]
+			if {$world($conn($c,world),telnet,prompt,ignoreNewline) && [regexp {^\r?\n} $retval ending]} {
+				set retval [string range $retval [string length $ending] end]
 			}
 		}
 		return $retval;
@@ -219,15 +220,15 @@ proc ::potato::telnet::process_sub_1 {c str} {
 		return [process_sub_3 $c $remainder];
 	} elseif { $cmdChar eq $tCmd(GA) || $cmdChar eq $tCmd(EOR) } {
 		# Display everything since the last newline as a prompt
-		set lastNewline [string last $conn($c,id,lineending) $conn($c,telnet,buffer,line)]
+		set lastNewline [string last "\n" $conn($c,telnet,buffer,line)]
 		if { $lastNewline == -1 } {
 			# The entire thing is the prompt
 			set prompt $conn($c,telnet,buffer,line)
 			set conn($c,telnet,buffer,line) ""
 		} else {
 			# Save anything up to - and including - the last \n
-			set prompt [string range $conn($c,telnet,buffer,line) $lastNewline+$conn($c,id,lineending,length) end]
-			set conn($c,telnet,buffer,line) [string range $conn($c,telnet,buffer,line) 0 [expr {$lastNewline+$conn($c,id,lineending,length)-1}]]
+			set prompt [string range $conn($c,telnet,buffer,line) [expr {$lastNewline+1}] end]
+			set conn($c,telnet,buffer,line) [string range $conn($c,telnet,buffer,line) 0 $lastNewline]
 		}
 		set conn($c,telnet,afterPrompt) 1
 		::potato::setPrompt $c $prompt
