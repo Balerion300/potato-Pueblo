@@ -31,6 +31,12 @@ The native GitHub matrix runs the same workload on Windows, macOS 15 and Tahoe
 numbers are diagnostic, not portable pass/fail speed thresholds: shared runners
 and local desktop load vary. Completed receipt files and process exit status are
 both required, including for Windows GUI executables.
+The workload has a five-minute in-client deadline and a six-minute process
+watchdog; individual receive phases have 30-second progress deadlines. Failed
+runs preserve resource samples and the event trace as artifacts. One Intel
+macOS 15 run continued processing correctly but exceeded the initial three-minute
+overall budget at refill cycle 26; the bounded budget was expanded rather than
+reducing the workload. Slow-runner timing is reported separately from correctness.
 
 ## Improvements measured in the Windows comparison
 

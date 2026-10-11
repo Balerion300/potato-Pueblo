@@ -16,7 +16,7 @@ return 2.0}; close $f
 set ::argv {}; set ::argc 0
 source [file join $::env(POTATO_TEST_SOURCE_ROOT) potato.vfs main.tcl]
 interp bgerror {} perfBackgroundError
-after 180000 {fail {benchmark timeout}}
+after 300000 {fail {benchmark timeout}}
 proc waitFor {expression} {
     set deadline [expr {[clock milliseconds]+30000}]
     while {![uplevel 1 [list expr $expression]]} {

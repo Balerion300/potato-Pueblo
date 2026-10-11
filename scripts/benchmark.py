@@ -48,9 +48,10 @@ with tempfile.TemporaryDirectory(prefix="potato-benchmark-") as folder, Fixture(
         tracked = psutil.Process(process.pid)
         start = time.monotonic()
         while process.poll() is None:
-            if time.monotonic() - start > 200:
+            if time.monotonic() - start > 360:
                 process.kill()
-                raise RuntimeError("Native benchmark exceeded 200 seconds")
+                process.wait()
+                break
             try:
                 memory = tracked.memory_info()
                 cpu = tracked.cpu_times()
@@ -70,7 +71,11 @@ with tempfile.TemporaryDirectory(prefix="potato-benchmark-") as folder, Fixture(
             time.sleep(.1)
         text = events.read_text() if events.exists() else ""
         if process.returncode or not text.rstrip().endswith("PASS"):
-            print((folder / "process.log").read_text(errors="replace"))
+            diagnostics = dict(build=identity, status="FAIL", samples=samples, events=text,
+                               process_log=(folder / "process.log").read_text(errors="replace"))
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(json.dumps(diagnostics, indent=2))
+            print(diagnostics["process_log"])
             raise RuntimeError(f"Benchmark failed: {text[-4000:]}")
 
 def distribution(values):
@@ -99,7 +104,7 @@ for row in text.splitlines():
         outgoing = dict(elapsed_ms=float(ms), bytes=int(size), commands=int(count),
                         throughput_kib_s=int(size)/1024/(float(ms)/1000),
                         round_trip=distribution([float(v) for v in rtts.split(",") if v]))
-result = dict(build=identity, working_source=args.source, platform=platform.platform(),
+result = dict(build=identity, status="PASS", working_source=args.source, platform=platform.platform(),
               elapsed_seconds=samples[-1]["seconds"], peak_rss_bytes=max(s["rss"] for s in samples),
               cpu_seconds=samples[-1]["cpu_seconds"], phases=phases, samples=samples, outgoing=outgoing,
               cleanup=[r for r in text.splitlines() if r.startswith(("CLEAN\t", "SOAK\t", "IMAGES\t", "RECONNECT\t"))])
