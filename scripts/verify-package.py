@@ -41,6 +41,10 @@ with tempfile.TemporaryDirectory(prefix="potato-extracted-preview-") as extracte
                    POTATO_TEST_FIXTURE=str(root / "tests/client.test.tcl"))
         env.pop("TCL_LIBRARY", None)
         env.pop("TK_LIBRARY", None)
+        if os.environ.get("GITHUB_ACTIONS") == "true":
+            # Keep a GUI fixture awake on the unattended ephemeral runner.
+            subprocess.run(["defaults", "write", "org.westeros.potato-pueblo.preview",
+                            "NSAppSleepDisabled", "-bool", "YES"], check=True)
         receipt = pathlib.Path(profile) / "test-result.txt"
         env["POTATO_TEST_RESULT"] = str(receipt)
         command = ["open", "-W", "-n", "-a", str(contents.parent)]

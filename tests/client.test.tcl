@@ -25,6 +25,11 @@ puts "CHECK: complete client started"
 set ::checks 0
 proc testTimeout {} {
     puts stderr "FAIL: full-client fixture exceeded 15 seconds"
+    if {[info exists ::env(POTATO_TEST_RESULT)]} {
+        set receipt [open $::env(POTATO_TEST_RESULT) w]
+        puts $receipt "FAIL: full-client fixture exceeded 15 seconds"
+        close $receipt
+    }
     for {set depth 1} {$depth < 30} {incr depth} {
         if {[catch {info frame -$depth} frame]} {break}
         puts stderr "FRAME: $frame"
