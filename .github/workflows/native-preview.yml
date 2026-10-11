@@ -13,10 +13,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-15, macos-15-intel]
+        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm, macos-15, macos-15-intel, macos-26, macos-26-intel]
     runs-on: ${{ matrix.os }}
+    env:
+      POTATO_RUNNER_LABEL: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Record operating system and architecture
+        run: python3 scripts/report-platform.py
       - name: Linux build dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libx11-dev libxft-dev libxss-dev libfontconfig1-dev xvfb
@@ -24,7 +28,7 @@ jobs:
         id: runtime
         with:
           path: .build/runtime
-          key: potato-static-8.6.18-${{ runner.os }}-${{ runner.arch }}-v1
+          key: potato-static-8.6.18-${{ matrix.os }}-${{ runner.arch }}-v2
       - name: Build pinned Tcl/Tk 8.6.18
         if: steps.runtime.outputs.cache-hit != 'true'
         run: bash scripts/build-runtime.sh
@@ -32,7 +36,7 @@ jobs:
         if: steps.runtime.outputs.cache-hit != 'true'
         with:
           path: .build/runtime
-          key: potato-static-8.6.18-${{ runner.os }}-${{ runner.arch }}-v1
+          key: potato-static-8.6.18-${{ matrix.os }}-${{ runner.arch }}-v2
       - name: Native parser, images and complete client checks
         timeout-minutes: 2
         shell: bash
@@ -64,6 +68,8 @@ jobs:
           if-no-files-found: error
   windows:
     runs-on: windows-latest
+    env:
+      POTATO_RUNNER_LABEL: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: msys2/setup-msys2@v2
@@ -72,6 +78,9 @@ jobs:
           update: true
           install: >-
             git make mingw-w64-x86_64-gcc mingw-w64-x86_64-python
+      - name: Record operating system and architecture
+        shell: msys2 {0}
+        run: python scripts/report-platform.py
       - uses: actions/cache/restore@v4
         id: runtime
         with:
