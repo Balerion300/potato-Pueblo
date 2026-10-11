@@ -52,12 +52,15 @@ proc testTrace {command args} {puts "TRACE: [lindex $command 0] [lindex $args en
 foreach name {::potato::addNewWorld ::potato::saveWorlds ::potato::connZero ::potato::newConnection ::potato::makeTextFrames ::potato::showConn ::potato::connect ::potato::ioOpen ::potato::connectVerify ::potato::connectComplete ::skin::potato::import ::skin::potato::show} {
     trace add execution $name {enter leave} testTrace
 }
+proc connectStep {command op} {puts "STEP: $command"; flush stdout}
+trace add execution ::potato::connect enterstep connectStep
 set connectionDeadline [after 10000 {puts stderr "FAIL: local connection did not complete in 10 seconds"; exit 1}]
 set w [::potato::addNewWorld Fixture 127.0.0.1 $port 1]
 foreach key {enabled commands images} {set ::potato::world($w,pueblo,$key) 1}
 set ::potato::world($w,spawnAll) {}
 ::potato::newConnection $w
 after cancel $connectionDeadline
+trace remove execution ::potato::connect enterstep connectStep
 foreach name {::potato::addNewWorld ::potato::saveWorlds ::potato::connZero ::potato::newConnection ::potato::makeTextFrames ::potato::showConn ::potato::connect ::potato::ioOpen ::potato::connectVerify ::potato::connectComplete ::skin::potato::import ::skin::potato::show} {
     trace remove execution $name {enter leave} testTrace
 }

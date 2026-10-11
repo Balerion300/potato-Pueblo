@@ -13,7 +13,7 @@ if platform.system() == "Darwin":
     executable = contents / "MacOS" / "Wish"
 else:
     resources = package
-    executable = resources / "runtime" / "bin" / ("wish86.exe" if platform.system() == "Windows" else "wish8.6")
+    executable = resources / "runtime" / "bin" / ("wish86s.exe" if platform.system() == "Windows" else "wish8.6")
 with tempfile.TemporaryDirectory(prefix="potato-package-test-") as profile:
     env = dict(os.environ, TCL_LIBRARY=str(resources / "runtime/lib/tcl8.6"),
                TK_LIBRARY=str(resources / "runtime/lib/tk8.6"), POTATO_HOME=profile,

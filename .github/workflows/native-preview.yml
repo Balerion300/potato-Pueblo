@@ -93,8 +93,8 @@ jobs:
           export TCL_LIBRARY="$(cygpath -m "$PWD/.build/runtime/lib/tcl8.6")"
           export TK_LIBRARY="$(cygpath -m "$PWD/.build/runtime/lib/tk8.6")"
           export POTATO_HOME="$(cygpath -m "$RUNNER_TEMP/potato-test-profile")"
-          .build/runtime/bin/wish86.exe tests/run.tcl tests/pueblo.test.tcl
-          .build/runtime/bin/wish86.exe tests/run.tcl tests/client.test.tcl
+          .build/runtime/bin/wish86s.exe tests/run.tcl tests/pueblo.test.tcl
+          .build/runtime/bin/wish86s.exe tests/run.tcl tests/client.test.tcl
       - name: Package native preview
         shell: msys2 {0}
         run: python scripts/package-preview.py

@@ -49,7 +49,7 @@ setlocal
 set "TCL_LIBRARY=%~dp0runtime\\lib\\tcl8.6"
 set "TK_LIBRARY=%~dp0runtime\\lib\\tk8.6"
 if not defined POTATO_HOME set "POTATO_HOME=%APPDATA%\\Potato-Pueblo-Preview"
-start "" "%~dp0runtime\\bin\\wish86.exe" "%~dp0potato.vfs\\main.tcl" %*
+start "" "%~dp0runtime\\bin\\wish86s.exe" "%~dp0potato.vfs\\main.tcl" %*
 ''', newline="\r\n")
     else:
         launcher = destination / "Start Potato Pueblo.sh"
