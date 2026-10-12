@@ -3,6 +3,7 @@ import json
 import os
 import pathlib
 import platform
+import plistlib
 import shutil
 import subprocess
 import sys
@@ -18,6 +19,32 @@ name = f"Potato-Pueblo-Preview-{system}-{arch}"
 destination = out / name
 destination.mkdir(exist_ok=True)
 resources = destination
+if system == "Darwin":
+    contents = destination / "Potato Pueblo.app" / "Contents"
+    resources = contents / "Resources"
+    executables = contents / "MacOS"
+    resources.mkdir(parents=True)
+    executables.mkdir()
+    shutil.copy2(runtime / "bin/wish8.6", executables / "PotatoWish")
+    launcher = executables / "PotatoPueblo"
+    launcher.write_text('''#!/bin/sh
+set -eu
+contents="$(cd "$(dirname "$0")/.." && pwd)"
+resources="$contents/Resources"
+export TCL_LIBRARY="$resources/runtime/lib/tcl8.6"
+export TK_LIBRARY="$resources/runtime/lib/tk8.6"
+export POTATO_HOME="${POTATO_HOME:-$HOME/Library/Application Support/Potato-Pueblo-Preview}"
+if [ "$#" -eq 0 ]; then set -- "$resources/potato.vfs/main.tcl"; fi
+exec "$contents/MacOS/PotatoWish" "$@"
+''')
+    launcher.chmod(0o755)
+    shutil.copy2(root / "potato.vfs/lib/app-potato/macosx/potato.icns", resources / "potato.icns")
+    (contents / "Info.plist").write_bytes(plistlib.dumps(dict(
+        CFBundleIdentifier="org.westeros.potato-pueblo.preview",
+        CFBundleName="Potato Pueblo", CFBundleDisplayName="Potato Pueblo",
+        CFBundleExecutable="PotatoPueblo", CFBundlePackageType="APPL",
+        CFBundleIconFile="potato.icns", CFBundleVersion="1",
+        CFBundleShortVersionString="2.0", NSHighResolutionCapable=True)))
 if system == "Windows":
     (destination / "Start Potato Pueblo.cmd").write_text('''@echo off
 setlocal
@@ -26,7 +53,7 @@ set "TK_LIBRARY=%~dp0runtime\\lib\\tk8.6"
 if not defined POTATO_HOME set "POTATO_HOME=%APPDATA%\\Potato-Pueblo-Preview"
 start "" "%~dp0runtime\\bin\\wish86s.exe" "%~dp0potato.vfs\\main.tcl" %*
 ''', newline="\r\n")
-else:
+elif system != "Darwin":
     mac = system == "Darwin"
     launcher = destination / ("Start Potato Pueblo.command" if mac else "Start Potato Pueblo.sh")
     profile = '$HOME/Library/Application Support/Potato-Pueblo-Preview' if mac else '${XDG_CONFIG_HOME:-$HOME/.config}/potato-pueblo-preview'
@@ -43,7 +70,7 @@ shutil.copytree(root / "potato.vfs", resources / "potato.vfs")
 for path in (root / "README.md", root / "docs" / "PUEBLO.md"):
     shutil.copy2(path, destination / path.name)
 # Record the actual source identity in every downloadable package.
-(destination / "BUILD.json").write_text(json.dumps(dict(
+(resources / "BUILD.json").write_text(json.dumps(dict(
     preview=True, commit=subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
     runtime="Tcl/Tk 8.6.18", system=system, architecture=arch, tested_platform=describe(),
     tcl="515167c897a7c8066abfbd71e8fe7bd8bf3569de", tk="6dbe68819aac4a22f6f7a143133ce26c5e8d2b05",

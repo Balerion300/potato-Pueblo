@@ -69,9 +69,11 @@ fresh profile and the build runtime unavailable. Unlike the ordinary loopback
 fixtures, this is a real SSL interoperability check and requires network access.
 
 Download the ZIP for your platform from the successful GitHub Actions run.
-Mac: use `Start Potato Pueblo.command`; Windows/Linux: use the included Start
-launcher. Mac previews use the native runtime directly; Finder app-bundle
-packaging remains unresolved. These previews are not notarized. Linux requires the
+Mac: open `Potato Pueblo.app`; Windows/Linux: use the included Start
+launcher. The Mac application includes its own native runtime, SSL library,
+scripts and icon. Extracted-package checks exercise both LaunchServices startup
+and the bundle launcher with the build runtime unavailable. These previews are
+not notarized. Linux requires the
 desktop X11/font libraries. `curl` must be available for remote images.
 Preview launchers use their own profile directory and copy no existing worlds,
 passwords, startup scripts or preferences. `POTATO_HOME` can explicitly choose

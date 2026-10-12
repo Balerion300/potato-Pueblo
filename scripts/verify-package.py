@@ -2,6 +2,7 @@
 import os
 import pathlib
 import platform
+import plistlib
 import subprocess
 import tempfile
 import zipfile
@@ -30,10 +31,31 @@ with tempfile.TemporaryDirectory(prefix="potato-extracted-preview-") as extracte
                TK_LIBRARY=str(resources / "runtime/lib/tk8.6"), POTATO_HOME=profile,
                POTATO_TEST_SOURCE_ROOT=str(resources))
     command = [str(executable), str(root / "tests/run.tcl"), str(root / "tests/client.test.tcl")]
+    if platform.system() == "Darwin":
+        contents = resources.parent
+        info = plistlib.loads((contents / "Info.plist").read_bytes())
+        executable = contents / "MacOS" / info["CFBundleExecutable"]
+        # Exercise the actual app launcher with no inherited runtime overrides.
+        env.pop("TCL_LIBRARY", None)
+        env.pop("TK_LIBRARY", None)
+        command[0] = str(executable)
     build_runtime = root / ".build/runtime"
     hidden_runtime = root / ".build/runtime-not-for-package-tests"
     build_runtime.rename(hidden_runtime)
     try:
+        if platform.system() == "Darwin":
+            receipt = destination / "finder-startup.txt"
+            launch_env = {"POTATO_HOME": str(destination / "finder-profile"),
+                          "POTATO_TEST_SOURCE_ROOT": str(resources),
+                          "POTATO_TEST_RESULT": str(receipt)}
+            open_command = ["open", "-n", "-W"]
+            for key, value in launch_env.items():
+                open_command.extend(["--env", f"{key}={value}"])
+            subprocess.run(open_command + [str(contents.parent), "--args",
+                            str(root / "tests/run.tcl"), str(root / "tests/startup.tcl")],
+                           env=env, cwd=destination, check=True, timeout=60)
+            if not receipt.exists() or receipt.read_text().strip() != "PASS":
+                raise RuntimeError("LaunchServices app startup did not complete")
         with Fixture() as fixture:
             env.update(fixture.environment())
             subprocess.run(command, env=env, cwd=package, check=True, timeout=60)
