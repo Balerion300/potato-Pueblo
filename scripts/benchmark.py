@@ -41,6 +41,8 @@ with tempfile.TemporaryDirectory(prefix="potato-benchmark-") as folder, Fixture(
     package = next(folder.rglob("BUILD.json")).parent
     identity = json.loads((package / "BUILD.json").read_text())
     executable = package / "runtime/bin" / ("wish86s.exe" if platform.system() == "Windows" else "wish8.6")
+    if platform.system() == "Darwin":
+        executable = package.parent / "MacOS/PotatoPueblo"
     events = folder / "events.tsv"
     env = dict(os.environ, **fixture.environment(), TCL_LIBRARY=str(package / "runtime/lib/tcl8.6"),
                TK_LIBRARY=str(package / "runtime/lib/tk8.6"), POTATO_HOME=str(folder / "profile"),
