@@ -98,7 +98,8 @@ parse {<EXPIRE>}; set before [llength $::sent]; click $old
 assert {[llength $::sent] == $before} "global expiration"
 set old [action [parse {<SEND look>Unnamed</SEND>}]]
 parse {<EXPIRE>}; click $old
-assert {[llength $::sent] == $before} "global expiration includes unnamed links"
+assert {[llength $::sent] == $before+1} "unnamed links never expire per MXP specification"
+set before [llength $::sent]
 set old [action [parse {<SEND look>Look</SEND>}]]; ::potato::mxp::reset 1 1; click $old
 assert {[llength $::sent] == $before} "connection epoch invalidates links"
 begin
@@ -132,6 +133,10 @@ assert {[llength [dict get $::potato::mxp::state(1) stack]]==128} "bounded unclo
 begin
 set items [parse {<B>outer<B>inner</B>outer</B>}]
 assert {"puebloBold" in [lindex $items 11 1 2]} "nested formatting retains outer style"
+begin 1; parse "<B>secure\n"; parse "open\n"
+assert {"puebloBold" in [lindex [parse continued] 0 1 2]} "secure formatting persists across open newlines"
+begin 0; parse "<B>open\n"
+assert {"puebloBold" ni [lindex [parse continued] 0 1 2]} "open formatting closes at newline"
 set wire [binary format ccc 255 251 91]
 append wire [binary format ccc 255 250 91] [binary format cc 255 240] "\x1b\[1z<SEND look>Look</SEND>\n"
 for {set split 0} {$split <= [string length $wire]} {incr split} {

@@ -58,15 +58,27 @@ proc ::potato::mxp::args {raw positions} {
     }
     return $result
 }
+proc ::potato::mxp::closeOpen {c} {
+    variable state
+    set stack {}; set styles {}
+    foreach entry [dict get $state($c) stack] {
+        if {[lindex $entry 1]} {lappend stack $entry; lappend styles [lindex $entry 0]}
+    }
+    dict set state($c) stack $stack
+    dict set state($c) styles [lsort -unique $styles]
+}
 proc ::potato::mxp::mode {c number} {
     variable state
     if {$number ni {0 1 2 3 4 5 6 7}} {return}
-    if {[dict get $state($c) mode] == 0} {dict set state($c) styles {}; dict set state($c) stack {}}
+    if {[dict get $state($c) mode] == 0} {closeOpen $c}
     dict set state($c) pending {}
     dict set state($c) temp 0
     switch -- $number {
         0 - 1 - 2 {dict set state($c) mode $number}
-        3 {dict set state($c) mode 0; dict set state($c) styles {}; dict set state($c) stack {}; dict set state($c) action {}; dict set state($c) send {}}
+        3 {
+            dict set state($c) mode 0; dict set state($c) styles {}; dict set state($c) stack {}; dict set state($c) action {}; dict set state($c) send {}
+            foreach {key value} {fg fg bg bg flash 0 underline 0 highlight 0 inverse 0} {set ::potato::conn($c,ansi,$key) $value}
+        }
         4 {dict set state($c) temp 1}
         5 - 6 - 7 {dict set state($c) mode [expr {$number-5}]; dict set state($c) default [expr {$number-5}]}
     }
@@ -164,13 +176,14 @@ proc ::potato::mxp::parse {c tagged} {
                 set styles [dict get $state($c) styles]
                 set pos [lsearch -exact $styles $style]
                 set stack [dict get $state($c) stack]
-                if {$closing eq "" && [llength $stack] < 128} {lappend stack $style}
+                if {$closing eq "" && [llength $stack] < 128} {lappend stack [list $style $secure]}
                 if {$closing ne ""} {
-                    set index [lsearch -exact $stack $style]
+                    set index [lsearch -index 0 -exact $stack $style]
                     if {$index >= 0} {set stack [lreplace $stack $index $index]}
                 }
                 dict set state($c) stack $stack
-                set styles [lsort -unique $stack]
+                set styles {}; foreach entry $stack {lappend styles [lindex $entry 0]}
+                set styles [lsort -unique $styles]
                 dict set state($c) styles $styles; continue
             }
             switch -- $name {
@@ -236,7 +249,7 @@ proc ::potato::mxp::parse {c tagged} {
             if {$j == $count && $count-$i < 32} {dict set state($c) pending [lrange $items $i end]; break}
         }
         if {$char eq "\n"} {
-            if {[dict get $state($c) mode] == 0} {dict set state($c) styles {}; dict set state($c) stack {}}
+            if {[dict get $state($c) mode] == 0} {closeOpen $c}
             dict set state($c) mode [dict get $state($c) default]
             dict set state($c) temp 0
         }
@@ -253,6 +266,7 @@ proc ::potato::mxp::line {c line {newline 1}} {
         lappend output {*}[parse $c [::potato::parseANSI $part ::potato::conn $c]]
         set code [string range $line {*}$number]; if {$code eq ""} {set code 0}
         scan $code %d code
+        if {$code == 3} {finishSend $c output}
         mode $c $code
         set offset [expr {$last+1}]
     }
@@ -266,11 +280,10 @@ proc ::potato::mxp::activate {c epoch payload} {
     variable state; upvar ::potato::conn conn
     if {![active $c] || [dict get $state($c) epoch] != $epoch} {return}
     lassign $payload kind value expiry generation all
-    if {[dict get $state($c) allExpiry] != $all} {return}
     if {$expiry ne ""} {
         set current 0
         if {[dict exists $state($c) expires $expiry]} {set current [dict get $state($c) expires $expiry]}
-        if {$current != $generation} {return}
+        if {$current != $generation || [dict get $state($c) allExpiry] != $all} {return}
     }
     if {$kind eq "url"} {if {[::potato::pueblo::url $value]} {::potato::launchWebPage $value}; return}
     if {![::potato::pueblo::option $c commands] || ![info exists conn($c,connected)] || $conn($c,connected) != 1} {return}
