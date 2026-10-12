@@ -137,6 +137,8 @@ begin 1; parse "<B>secure\n"; parse "open\n"
 assert {"puebloBold" in [lindex [parse continued] 0 1 2]} "secure formatting persists across open newlines"
 begin 0; parse "<B>open\n"
 assert {"puebloBold" ni [lindex [parse continued] 0 1 2]} "open formatting closes at newline"
+begin 1; parse <B>; ::potato::mxp::mode 1 0; parse "<B>inner</B>\n"
+assert {"puebloBold" in [lindex [parse outer] 0 1 2]} "inner open tag closure preserves secure outer tag"
 set wire [binary format ccc 255 251 91]
 append wire [binary format ccc 255 250 91] [binary format cc 255 240] "\x1b\[1z<SEND look>Look</SEND>\n"
 for {set split 0} {$split <= [string length $wire]} {incr split} {

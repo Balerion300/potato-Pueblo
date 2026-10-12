@@ -20,6 +20,7 @@ Supported subset of the [MXP 1.0 specification](https://www.zuggsoft.com/zmud/mx
 Command links send literal game commands only after activation. PROMPT links
 fill the input without sending. Mode restrictions, the command opt-in, reconnect
 epochs, and expiration are checked again when a link or menu item is activated.
+As specified by MXP, links without an EXPIRE name remain active through EXPIRE.
 The client does not evaluate incoming text as Tcl or local slash commands.
 Menus accept at most 16 commands; command length is bounded at 2,048 characters.
 Incomplete tokens and SEND captions are bounded at 8,192 characters, and the
