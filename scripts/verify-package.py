@@ -10,6 +10,27 @@ import sys
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "tests"))
 from fixture_server import Fixture
 
+def run_connected_client(command, env, cwd):
+    if platform.system() != "Darwin":
+        subprocess.run(command, env=env, cwd=cwd, check=True, timeout=60)
+        return
+    process = subprocess.Popen(command, env=env, cwd=cwd)
+    try:
+        try:
+            code = process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            sample = root / "artifacts/mac-package-client-sample.txt"
+            print(f"Capturing native client startup stack: {sample}", flush=True)
+            subprocess.run(["sample", str(process.pid), "2", "1", "-file", str(sample)],
+                           check=False, timeout=8)
+            code = process.wait(timeout=42)
+        if code:
+            raise subprocess.CalledProcessError(code, command)
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+
 root = pathlib.Path(__file__).resolve().parents[1]
 archive = next((root / "artifacts").glob("Potato-Pueblo-Preview-*.zip"))
 with tempfile.TemporaryDirectory(prefix="potato-extracted-preview-") as extracted, tempfile.TemporaryDirectory(prefix="potato-package-profile-") as profile:
@@ -64,7 +85,7 @@ with tempfile.TemporaryDirectory(prefix="potato-extracted-preview-") as extracte
                 raise RuntimeError(f"LaunchServices app startup did not complete: {outcome}")
         with Fixture() as fixture:
             env.update(fixture.environment())
-            subprocess.run(command, env=env, cwd=package, check=True, timeout=60)
+            run_connected_client(command, env, package)
         with tempfile.TemporaryDirectory(prefix="potato-package-ssl-") as ssl_profile:
             env["POTATO_HOME"] = ssl_profile
             subprocess.run([str(executable), str(root / "tests/run.tcl"), str(root / "tests/ssl.test.tcl")],
