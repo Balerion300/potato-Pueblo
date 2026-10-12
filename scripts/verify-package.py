@@ -48,6 +48,11 @@ with tempfile.TemporaryDirectory(prefix="potato-extracted-preview-") as extracte
             launch_env = {"POTATO_HOME": str(destination / "finder-profile"),
                           "POTATO_TEST_SOURCE_ROOT": str(resources),
                           "POTATO_TEST_RESULT": str(receipt)}
+            direct_env = dict(env, **launch_env)
+            direct_env["POTATO_HOME"] = str(destination / "direct-profile")
+            subprocess.run([str(executable), str(root / "tests/run.tcl"), str(root / "tests/startup.tcl")],
+                           env=direct_env, cwd=destination, check=True, timeout=60)
+            receipt.unlink(missing_ok=True)
             open_command = ["open", "-n", "-W"]
             for key, value in launch_env.items():
                 open_command.extend(["--env", f"{key}={value}"])
@@ -55,7 +60,8 @@ with tempfile.TemporaryDirectory(prefix="potato-extracted-preview-") as extracte
                             str(root / "tests/run.tcl"), str(root / "tests/startup.tcl")],
                            env=env, cwd=destination, check=True, timeout=60)
             if not receipt.exists() or receipt.read_text().strip() != "PASS":
-                raise RuntimeError("LaunchServices app startup did not complete")
+                outcome = receipt.read_text() if receipt.exists() else "No completion receipt"
+                raise RuntimeError(f"LaunchServices app startup did not complete: {outcome}")
         with Fixture() as fixture:
             env.update(fixture.environment())
             subprocess.run(command, env=env, cwd=package, check=True, timeout=60)
