@@ -10,5 +10,7 @@ test "$(git -C "$headers_root" rev-parse HEAD)" = 6dbe68819aac4a22f6f7a143133ce2
 source "$runtime_root/lib/tclConfig.sh"
 source "$runtime_root/lib/tkConfig.sh"
 # Config files originate from our pinned runtime build. Expand their linker flags.
-eval "clang -DMAC_OSX_TK -I\"$runtime_root/include\" -I\"$headers_root/generic\" -I\"$headers_root/xlib\" -o \"\$1\" \"$project_root/scripts/mac-launcher.c\" $TK_LIB_SPEC $TCL_LIB_SPEC $TK_LIBS $TCL_LIBS"
+# Aqua implements event routing in Objective-C categories. The linker must
+# retain those archive members even when C symbols do not reference them.
+eval "clang -ObjC -DMAC_OSX_TK -I\"$runtime_root/include\" -I\"$headers_root/generic\" -I\"$headers_root/xlib\" -o \"\$1\" \"$project_root/scripts/mac-launcher.c\" $TK_LIB_SPEC $TCL_LIB_SPEC $TK_LIBS $TCL_LIBS"
 codesign --force --sign - "$1"
