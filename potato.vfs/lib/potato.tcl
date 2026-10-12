@@ -3668,7 +3668,7 @@ proc ::potato::get_mushage {c} {
 	if { $conn($c,debugPackets) } {
 		debug_packet $c 1 $text
 	}
-	if { [hasProtocol $c telnet] || ($world($conn($c,world),telnet) && (!$world($conn($c,world),telnet,timeout) ||([clock seconds] - $conn($c,stats,connAt)) < 90))} {
+	if { [hasProtocol $c telnet] || ($world($conn($c,world),telnet) && (!$world($conn($c,world),telnet,timeout) || [::potato::mxp::option $c] || ([clock seconds] - $conn($c,stats,connAt)) < 90))} {
 		set text [::potato::telnet::process $c $text]
 	}
 

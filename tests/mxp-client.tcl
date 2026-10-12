@@ -3,6 +3,8 @@ after cancel $testDeadline
 set testDeadline [after 20000 testTimeout]
 set ::potato::world($w,outputLimit,on) 0
 set ::potato::world($w,mxp,enabled) 1
+# Late negotiation must survive the legacy 90-second Telnet detection window.
+set ::potato::conn($c,stats,connAt) [expr {[clock seconds]-120}]
 if {[info exists ::env(POTATO_FIXTURE_GAME_PORT)]} {
     puts $::peer MXP-START
 } else {

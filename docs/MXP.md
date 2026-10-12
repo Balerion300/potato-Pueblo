@@ -4,6 +4,8 @@ In World Configuration → Output Settings, enable **MXP** and reconnect.
 **Show inline images** and **Allow command clicks** also apply to MXP.
 The server must negotiate Telnet option 91 and send MXP mode controls;
 enabling the option does not turn ordinary server text into markup.
+An MXP-enabled world continues detecting Telnet negotiation after the legacy
+90-second detection window, so servers can activate MXP later in a session.
 
 Supported subset of the [MXP 1.0 specification](https://www.zuggsoft.com/zmud/mxp.htm):
 
