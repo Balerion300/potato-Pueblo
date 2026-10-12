@@ -25,19 +25,8 @@ if system == "Darwin":
     executables = contents / "MacOS"
     resources.mkdir(parents=True)
     executables.mkdir()
-    shutil.copy2(runtime / "bin/wish8.6", executables / "PotatoWish")
     launcher = executables / "PotatoPueblo"
-    launcher.write_text('''#!/bin/sh
-set -eu
-contents="$(cd "$(dirname "$0")/.." && pwd)"
-resources="$contents/Resources"
-export TCL_LIBRARY="$resources/runtime/lib/tcl8.6"
-export TK_LIBRARY="$resources/runtime/lib/tk8.6"
-export POTATO_HOME="${POTATO_HOME:-$HOME/Library/Application Support/Potato-Pueblo-Preview}"
-if [ "$#" -eq 0 ]; then set -- "$resources/potato.vfs/main.tcl"; fi
-exec "$contents/MacOS/PotatoWish" "$@"
-''')
-    launcher.chmod(0o755)
+    subprocess.run(["bash", str(root / "scripts/build-mac-launcher.sh"), str(launcher)], check=True)
     shutil.copy2(root / "potato.vfs/lib/app-potato/macosx/potato.icns", resources / "potato.icns")
     (contents / "Info.plist").write_bytes(plistlib.dumps(dict(
         CFBundleIdentifier="org.westeros.potato-pueblo.preview",
