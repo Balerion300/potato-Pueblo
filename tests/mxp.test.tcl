@@ -127,6 +127,11 @@ begin; parse [string repeat < 20000]
 assert {[llength [dict get $::potato::mxp::state(1) pending]] < 8192} "bounded malformed token"
 begin; parse "<SEND look>[string repeat x 9000]"
 assert {[dict get $::potato::mxp::state(1) send] eq ""} "bounded unterminated SEND"
+begin 6; parse [string repeat <B> 1000]
+assert {[llength [dict get $::potato::mxp::state(1) stack]]==128} "bounded unclosed secure formatting"
+begin
+set items [parse {<B>outer<B>inner</B>outer</B>}]
+assert {"puebloBold" in [lindex $items 11 1 2]} "nested formatting retains outer style"
 set wire [binary format ccc 255 251 91]
 append wire [binary format ccc 255 250 91] [binary format cc 255 240] "\x1b\[1z<SEND look>Look</SEND>\n"
 for {set split 0} {$split <= [string length $wire]} {incr split} {

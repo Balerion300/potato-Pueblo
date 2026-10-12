@@ -164,7 +164,7 @@ proc ::potato::mxp::parse {c tagged} {
                 set styles [dict get $state($c) styles]
                 set pos [lsearch -exact $styles $style]
                 set stack [dict get $state($c) stack]
-                if {$closing eq ""} {lappend stack $style}
+                if {$closing eq "" && [llength $stack] < 128} {lappend stack $style}
                 if {$closing ne ""} {
                     set index [lsearch -exact $stack $style]
                     if {$index >= 0} {set stack [lreplace $stack $index $index]}

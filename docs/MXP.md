@@ -22,7 +22,8 @@ fill the input without sending. Mode restrictions, the command opt-in, reconnect
 epochs, and expiration are checked again when a link or menu item is activated.
 The client does not evaluate incoming text as Tcl or local slash commands.
 Menus accept at most 16 commands; command length is bounded at 2,048 characters.
-Incomplete tokens and SEND captions are bounded at 8,192 characters. Expiration
+Incomplete tokens and SEND captions are bounded at 8,192 characters, and the
+formatting stack at 128 entries. Expiration
 names are limited to 128; overflowing that table expires existing links.
 
 This is a display subset, not complete MXP. Custom ELEMENT/ENTITY definitions,
