@@ -27,6 +27,28 @@ proc start {} {
     ::potato::pueblo::parse 1 [tagged {</xch_mudtext><img xch_mode=purehtml><xch_page clear=text>}]
 }
 set ::checks 0
+# Real Pueblo command values are in XCH_CMD, with no HREF required. Test
+# arbitrary wire fragmentation and literal delivery of command metacharacters.
+set commandFixture {<a XCH_CMD="look">Stone Garden</a><a xch_cmd='+views'>Views</a><a xch_cmd="+view sword &amp; say {hi}; [exec bad]" href="https://example.org">Sword</a>}
+for {set split 0} {$split <= [string length $commandFixture]} {incr split} {
+    start
+    set ::sent {}
+    set a [::potato::pueblo::parse 1 [tagged [string range $commandFixture 0 $split-1]]]
+    set b [::potato::pueblo::parse 1 [tagged [string range $commandFixture $split end]]]
+    assert {$::sent eq {}} "command parsing never sends at fragment $split"
+    set actions {}
+    foreach item [concat $a $b] {
+        foreach tag [lindex $item 1 2] {
+            if {[lindex $tag 0] eq "potatoAction" && $tag ni $actions} {lappend actions $tag}
+        }
+    }
+    foreach action $actions {::potato::pueblo::activate {*}[lrange $action 1 end]}
+    assert {$::sent eq [list look +views {+view sword & say {hi}; [exec bad]}]} "standard command values at fragment $split"
+}
+start
+set ::sent {}
+set invalid [::potato::pueblo::parse 1 [tagged {<a xch_cmd="" href="https://example.org">Empty</a><a xch_cmd="look&#10;quit">Multiline</a>}]]
+foreach item $invalid {assert {"link" ni [lindex $item 1 2]} "invalid explicit commands are inert"}
 start
 assert {[lindex $::sent end] eq "PUEBLOCLIENT 1.10"} negotiation
 assert {[plain [::potato::pueblo::parse 1 [tagged {<img xch_mode=purehtml><xch_page clear=text>}]]] eq ""} "PennMUSH mode controls are invisible"

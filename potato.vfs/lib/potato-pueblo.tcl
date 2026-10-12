@@ -152,8 +152,14 @@ proc ::potato::pueblo::parse {c tagged} {
                     dict set state($c) action {}
                     if {$closing ne ""} {continue}
                     set value [get $attrs href]
-                    if {$name eq "send" || [string equal -nocase [get $attrs xch_cmd] true]} {
+                    if {$name eq "send"} {
                         if {[command $value]} {dict set state($c) action [list command $value]}
+                    } elseif {[dict exists $attrs xch_cmd]} {
+                        # Pueblo stores the command in XCH_CMD, independently
+                        # of HREF. Keep the earlier preview's true/HREF form.
+                        set cmd [get $attrs xch_cmd]
+                        if {[string equal -nocase $cmd true] && $value ne ""} {set cmd $value}
+                        if {[command $cmd]} {dict set state($c) action [list command $cmd]}
                     } elseif {[url $value]} {dict set state($c) action [list url $value]}
                 }
                 pre {dict set state($c) pre [expr {$closing eq ""}]}

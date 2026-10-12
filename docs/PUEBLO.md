@@ -7,7 +7,8 @@ Pueblo and reconnect. **Show inline images** and **Allow command clicks** are
 separate opt-in controls. Nothing executes when a link arrives; commands are sent
 only when clicked and bypass Potato's local slash-command interpreter.
 
-Supported display subset: `XCH_MUDTEXT`, `A HREF` (including `XCH_CMD="true"`),
+Supported display subset: `XCH_MUDTEXT`, `A HREF`, `A XCH_CMD="command"`
+(also accepting the earlier preview's `XCH_CMD="true" HREF="command"` form),
 `IMG SRC`, `PRE`, `BR`, `P`, bold, italic, underline, basic/numeric entities.
 Literal/entity tabs survive; a BR followed by its transport newline does not
 double-space PRE output. The server's Pueblo greeting gets one PUEBLOCLIENT reply

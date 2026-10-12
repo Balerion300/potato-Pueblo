@@ -81,6 +81,18 @@ assert {![::potato::taskState reconnect]} "Aqua startup reconnect menu without c
 assert {![::potato::taskState disconnect]} "Aqua startup disconnect menu without current tab"
 assert {![::potato::taskState config]} "Aqua startup world configuration menu without current tab"
 set ::potato::potato(up) $priorConnection
+# Default startup runs this background check after 3.5 seconds. Exercise its
+# actual entry point without depending on the update site's availability.
+rename ::http::geturl ::http::testGeturl
+proc ::http::geturl {args} {error {Fixture update service unavailable}}
+::potato::checkForUpdates 1
+rename ::http::geturl {}; rename ::http::testGeturl ::http::geturl
+assert {$::potato::potato(menusReady)} "background update check preserves initialized menus"
+foreach name {file edit view log options tools help} {
+    set m $::potato::menu($name,path)
+    {*}[ $m cget -postcommand ]
+    assert {[$m index end] ne "none"} "$name menu populated after automatic update check"
+}
 set ::wire {}
 proc accept {channel address port} {
     set ::peer $channel
@@ -150,7 +162,7 @@ after cancel $heightEvent
 puts $::peer {<pre>Names<BR>}
 puts $::peer {&#9;Row 1<BR>}
 puts $::peer {&#9;&#9;Row 2<BR></pre>}
-puts $::peer {<a xch_cmd="true" href="look">Look around</a> <a href="https://www.example.org">Website</a>}
+puts $::peer {<a xch_cmd="look">Look around</a> <a href="https://www.example.org">Website</a>}
 waitFor {[string first "Look around" [$t get 1.0 end]]>=0}
 set text ""
 for {set pos 1.0} {[$t compare $pos < end-1c]} {set pos [$t index "$pos + 1c"]} {

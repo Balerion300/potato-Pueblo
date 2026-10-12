@@ -6636,6 +6636,7 @@ proc ::potato::os {} {
 #: return nothing
 proc ::potato::main {} {
 	variable potato;
+	set potato(menusReady) 0
 	variable path;
 	variable skins;
 	variable misc;
@@ -8472,7 +8473,6 @@ proc ::potato::setUpMenu {} {
 #: return nothing
 proc ::potato::checkForUpdates {{background 0}} {
 	variable potato;
-	set potato(menusReady) 0
 	variable update;
 
 	set win .checkForUpdates
