@@ -102,10 +102,18 @@ if {[info exists ::env(POTATO_FIXTURE_GAME_PORT)]} {
     set port [lindex [fconfigure $server -sockname] end]
 }
 set connectionDeadline [after 10000 {puts stderr "FAIL: local connection did not complete in 10 seconds"; exit 1}]
+set ::peerQueries 0
+rename fconfigure nativeFconfigure
+proc fconfigure {args} {
+    if {[lindex $args 1] eq "-peername"} {incr ::peerQueries; error "Blocking reverse DNS is forbidden during connection startup"}
+    uplevel 1 [list nativeFconfigure {*}$args]
+}
 set w [::potato::addNewWorld Fixture 127.0.0.1 $port 1]
 foreach key {enabled commands images} {set ::potato::world($w,pueblo,$key) 1}
 set ::potato::world($w,spawnAll) {}
 ::potato::newConnection $w
+rename fconfigure {}; rename nativeFconfigure fconfigure
+assert {$::peerQueries==0} "connection startup avoids synchronous reverse DNS"
 after cancel $connectionDeadline
 puts "CHECK: local connection opened"; flush stdout
 set c $::potato::potato(up)

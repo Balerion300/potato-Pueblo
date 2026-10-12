@@ -109,3 +109,10 @@ These checks cover synthetic bursts and repeated lifecycle operations, not
 multi-day sessions, every user script/trigger, every Linux distribution, Finder
 security prompts, or Mac app notarization. Native desktop and longer real-game
 acceptance still matter before a final release designation.
+
+MXP validation exposed a 35-second Tahoe connection stall. A native `sample`
+trace placed the main thread in Tcl's `fconfigure -peername`, `getnameinfo`, and
+the macOS reverse-DNS resolver. The connection-complete status message now uses
+the selected host/port instead of asking for reverse DNS before registering
+readable socket events. A full-client regression test rejects that query during
+connection startup. Mac package tests capture a native stack if startup is slow.

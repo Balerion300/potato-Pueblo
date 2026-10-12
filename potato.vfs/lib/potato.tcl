@@ -3205,12 +3205,10 @@ proc ::potato::connectComplete {c} {
 	# and a telnet IAC. So, get data in binary format, and convert manually after telnet parsing.
 	fconfigure $id -translation binary -encoding binary -eof {} -blocking 0 -buffering none
 
-	set peer [fconfigure $id -peername]
-	if { [lindex $peer 0] in [list "" [lindex $peer 1]] } {
-		set str [lindex $peer 0]
-	} else {
-		set str "[lindex $peer 0] ([lindex $peer 1])"
-	}
+	# -peername performs synchronous reverse DNS even on a nonblocking
+	# socket. A slow resolver must not stall the UI before readable events
+	# are registered. The selected address already identifies this connection.
+	set str $conn($c,address,disp)
 	outputSystem $c [T "Connected - %s - %s" $str [timestamp]]
 
 	set conn($c,telnet,state) 0
