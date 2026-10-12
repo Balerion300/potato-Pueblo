@@ -12,7 +12,8 @@ Supported display subset: `XCH_MUDTEXT`, `A HREF` (including `XCH_CMD="true"`),
 Literal/entity tabs survive; a BR followed by its transport newline does not
 double-space PRE output. The server's Pueblo greeting gets one PUEBLOCLIENT reply
 per connection. Ordinary output remains literal before negotiation or when
-Pueblo is off. This is not a general HTML browser or complete MXP implementation.
+Pueblo is off. This is not a general HTML browser. Separate negotiated
+[MXP display support](MXP.md) is available through the MXP world setting.
 `<xch_mudtext>` selects literal text; `</xch_mudtext>` selects markup, matching
 PennMUSH's actual negotiation response. Mode-only IMG messages stay invisible.
 Incoming CRLF and LF lines are both accepted, including through Telnet buffering.

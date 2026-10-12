@@ -268,6 +268,12 @@ proc ::potato::telnet::process_sub_2 {c str} {
 	set optCharCode [scan $optChar %c]
 	set remainder [string range $str 1 end]
 
+	if {$optChar eq $tOpt(MXP)} {
+		::potato::mxp::negotiate $c $tCmd([scan $cmdChar %c])
+		set conn($c,telnet,buffer,codes) ""
+		set conn($c,telnet,state) 0
+		return [process $c $remainder]
+	}
 	if { $optChar == $tOpt(CHARSET) } {
 		set will $world($w,encoding,negotiate)
 	} elseif { $optChar == $tOpt(NAWS) } {
@@ -391,6 +397,9 @@ proc ::potato::telnet::process_sub_3_1 {c str} {
 	set telnet $conn($c,telnet,buffer,codes)
 
 	# We need IAC-SB-OPT-<str>-IAC-SE to do anything, so the buffered string must be at least 2 chars long
+	if {[string length $telnet] == 1 && $telnet eq $tOpt(MXP) && [::potato::mxp::active $c]} {
+		::potato::mxp::reset $c 1
+	}
 	if { [string length $telnet] >= 2} {
 		set optChar [string index $telnet 0]
 		set optCharCode [scan $optChar %c]

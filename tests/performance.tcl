@@ -64,7 +64,7 @@ proc profileWidget {widget} {
     }]
 }
 profileWidget $t
-foreach name {get_mushageProcess parseANSI flattenParsedANSI eventsMatch atEnd skinStatus setPrompt pueblo::parse pueblo::render pueblo::images::collect pueblo::images::resize pueblo::images::readable pueblo::images::install} {
+foreach name {get_mushageProcess parseANSI flattenParsedANSI eventsMatch atEnd skinStatus setPrompt mxp::line mxp::parse pueblo::parse pueblo::render pueblo::images::collect pueblo::images::resize pueblo::images::readable pueblo::images::install} {
     set original "[namespace qualifiers ::potato::$name]::perfOriginal_[namespace tail ::potato::$name]"
     rename ::potato::$name $original
     proc ::potato::$name {args} [string map [list @NAME@ $name @ORIGINAL@ $original] {
@@ -176,6 +176,21 @@ while {[clock milliseconds]<$deadline} {
     $t delete 1.0 end
     phase stress_links_$cycle [join [lrange $links 0 199] \n]
     phase stress_ansi_$cycle [join [lrange $ansi 0 199] \n]
+    if {$cycle%5==0} {
+        set ::potato::world($w,mxp,enabled) 1
+        puts $::peer MXP-START
+        waitFor {[::potato::mxp::active $c] && [string first {<SUPPORTS} [join $::wire]]>=0}
+        # The negotiation line must finish before resetting phase counters.
+        puts $::peer MXP-READY
+        waitFor {[string first MXP-READY [$t get end-4l end]]>=0}
+        set mxpLines {}
+        for {set i 0} {$i<200} {incr i} {lappend mxpLines "\x1b\[1z<B><SEND href='look $i'>MXP stress $cycle $i</SEND></B>"}
+        phase stress_mxp_$cycle [join $mxpLines \n]
+        if {[string first "MXP stress $cycle 199" [$t get end-4l end]]<0} {error {MXP stress captions changed}}
+        puts $::peer MXP-STOP
+        waitFor {![::potato::mxp::active $c]}
+        record MXP $cycle PASS
+    }
     if {$cycle%5==0} {
         set ::potato::conn($c,spawnAll) {Images}
         set lines {}

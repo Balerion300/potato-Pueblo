@@ -3175,6 +3175,7 @@ proc ::potato::connectComplete {c} {
 
 	set conn($c,connected) 1
 	::potato::pueblo::reset $c
+	::potato::mxp::reset $c
 
 	set conn($c,stats,connAt) [clock seconds]
 	set conn($c,stats,formatted) [statsFormat 0]
@@ -3519,6 +3520,7 @@ proc ::potato::disconnect {{c ""} {prompt 1}} {
 	}
 	set conn($c,connected) 0
 	::potato::pueblo::reset $c
+	::potato::mxp::reset $c
 	set conn($c,address) [list]
 	set conn($c,address,disp) [T "Not Connected"]
 	timersStop $c
@@ -3803,7 +3805,12 @@ proc ::potato::get_mushageProcess {c line} {
 	# [list "string" [list "fgTag" "bgTag" [list "other" "tags"]]]
 	set tagged [list]
 	# ANSI escape char is \x1B, char code 27
-	if { [regsub -all {\x1B.*?m} $line "" lineNoansi] } {
+	if {[::potato::mxp::active $c]} {
+		set tagged [::potato::mxp::line $c $line]
+		set lineNoansi ""
+		foreach item $tagged {append lineNoansi [lindex $item 0]}
+		if {$line ne "" && ![llength $tagged]} {return}
+	} elseif { [regsub -all {\x1B.*?m} $line "" lineNoansi] } {
 		# We have ANSI
 		set toparse $line
 		set tagged [parseANSI $line conn $c]
@@ -3816,7 +3823,7 @@ proc ::potato::get_mushageProcess {c line} {
 	}
 
 	# Parse display markup before triggers/logging so their text remains readable.
-	if {[::potato::pueblo::option $c enabled]} {
+	if {![::potato::mxp::active $c] && [::potato::pueblo::option $c enabled]} {
 		set wasText [expr {$lineNoansi ne ""}]
 		lappend tagged [list "\n" [get_mushageColours conn $c]]
 		set tagged [::potato::pueblo::parse $c $tagged]
@@ -12757,6 +12764,12 @@ proc ::potato::setPrompt {c prompt} {
 
 	# ANSI-less version
 	set hasAnsi [regsub -all {\x1B.*?m} $prompt "" noAnsi]
+	set mxpPrompt [expr {$prompt ne "" && [::potato::mxp::active $c]}]
+	if {$mxpPrompt} {
+		set tagged [::potato::mxp::line $c $prompt 0]
+		set noAnsi ""
+		foreach item $tagged {append noAnsi [lindex $item 0]}
+	}
 	if { $noAnsi eq "" } {
 		set conn($c,prompt) ""
 	} else {
@@ -12770,7 +12783,9 @@ proc ::potato::setPrompt {c prompt} {
 		}
 	} else {
 		set aE [atEnd $t]
-		if { $hasAnsi } {
+		if {$mxpPrompt} {
+			set inserts [flattenParsedANSI $tagged [list prompt margins]]
+		} elseif { $hasAnsi } {
 			# We need to parse out the ANSI. Le sigh
 			set ansi($c,ansi,fg) fg
 			set ansi($c,ansi,bg) bg
@@ -12788,6 +12803,7 @@ proc ::potato::setPrompt {c prompt} {
 		} else {
 			$t insert end {*}$inserts
 		}
+		if {$mxpPrompt} {::potato::pueblo::render $c $t prompt.first}
 		if { $aE } {
 			$t see end
 		}
@@ -12865,7 +12881,7 @@ proc ::potato::basic_reqs {} {
 	# OK, that's Tcl and Tk sorted. Now let's load in the other parts of Potato from separate
 	# files. These really shouldn't be an issue....
 
-	set files [list telnet proxy wikihelp spell encoding config events slash pueblo pueblo-images]
+	set files [list telnet proxy wikihelp spell encoding config events slash pueblo pueblo-images mxp]
 
 	set packages [list \
 		[list treeviewUtils] \

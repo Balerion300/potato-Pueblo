@@ -222,6 +222,7 @@ proc ::potato::pueblo::parse {c tagged} {
 proc ::potato::pueblo::activate {c epoch kind value} {
     variable state
     upvar ::potato::conn conn
+    if {$kind eq "mxp"} {::potato::mxp::activate $c $epoch $value; return}
     if {![option $c enabled]} {return}
     if {$kind eq "url" && [url $value]} {::potato::launchWebPage $value; return}
     if {$kind eq "command" && [command $value] && [option $c commands] &&
@@ -272,6 +273,7 @@ proc ::potato::pueblo::render {c widget {start ""}} {
     # Use each transcript's existing font rather than a hard-coded family.
     set font [font actual [$widget cget -font]]
     if {$font ne [dict get $view font]} {
+        $widget tag configure mxpStrike -overstrike 1
         $widget tag configure puebloBold -font [concat $font {-weight bold}]
         $widget tag configure puebloItalic -font [concat $font {-slant italic}]
         dict set view font $font

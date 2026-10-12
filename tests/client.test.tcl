@@ -254,6 +254,7 @@ assert {[lindex [split [$t index end] .] 0]<=6} "configured main transcript limi
 assert {[string first {Bounded output 0} [$t get 1.0 end]]<0} "old output removed while latest output remains"
 ::potato::pueblo::images::collect
 assert {[dict size $::potato::pueblo::images::photos]==1 && [llength [$spawn image names]]==1} "trimmed main photo reclaimed while spawn photo remains"
+source [file join [file dirname [info script]] mxp-client.tcl]
 ::potato::disconnect $c 0
 close $::peer
 if {[info exists server]} {close $server}

@@ -39,6 +39,7 @@ proc ::potato::setPrefs {readfile} {
 
 	# Negotiated markup and remote resources are opt-in per world.
 	set world(0,pueblo,enabled) 0
+	set world(0,mxp,enabled) 0
 	set world(0,pueblo,images) 0
 	set world(0,pueblo,commands) 0
 
@@ -784,6 +785,7 @@ proc ::potato::configureWorld {{w ""} {autosave 0}} {
 
 	# Pueblo display controls, saved with the other world settings.
 	pack [set sub [::ttk::frame $frame.pueblo]] -side top -pady 5 -anchor nw
+	pack [::ttk::checkbutton $sub.mxp -text [T "Enable MXP (reconnect after changing)"] -variable ::potato::worldconfig($w,mxp,enabled)] -side top -anchor w
 	foreach {key label} {enabled {Enable Pueblo (reconnect after changing)} images {Show inline images} commands {Allow command clicks}} {
 		pack [::ttk::checkbutton $sub.$key -text [T $label] -variable ::potato::worldconfig($w,pueblo,$key)] -side top -anchor w
 	}

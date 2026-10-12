@@ -59,7 +59,7 @@ jobs:
             .build/runtime/TLS-BUILD.txt
           key: potato-tls-2.0.1-openssl-3.5.9-${{ matrix.os }}-${{ runner.arch }}-v2
       - name: Native parser, images and complete client checks
-        timeout-minutes: 2
+        timeout-minutes: 4
         shell: bash
         run: |
           export TCL_LIBRARY="$PWD/.build/runtime/lib/tcl8.6"
@@ -67,9 +67,11 @@ jobs:
           export POTATO_HOME="$RUNNER_TEMP/potato-test-profile"
           if [ "$RUNNER_OS" = Linux ]; then
             xvfb-run -a .build/runtime/bin/wish8.6 tests/run.tcl tests/pueblo.test.tcl
+            xvfb-run -a .build/runtime/bin/wish8.6 tests/run.tcl tests/mxp.test.tcl
             xvfb-run -a .build/runtime/bin/wish8.6 tests/run.tcl tests/client.test.tcl
           else
             .build/runtime/bin/wish8.6 tests/run.tcl tests/pueblo.test.tcl
+            .build/runtime/bin/wish8.6 tests/run.tcl tests/mxp.test.tcl
             .build/runtime/bin/wish8.6 tests/run.tcl tests/client.test.tcl
           fi
       - name: Check portable TLS dependencies
@@ -78,7 +80,7 @@ jobs:
         # SSL is tested again after extraction, without the build runtime.
         run: python3 scripts/package-preview.py
       - name: Check relocated packaged client
-        timeout-minutes: 2
+        timeout-minutes: 4
         run: |
           if [ "$RUNNER_OS" = Linux ]; then
             xvfb-run -a python3 scripts/verify-package.py
@@ -136,13 +138,14 @@ jobs:
           path: .build/runtime
           key: potato-static-8.6.18-${{ runner.os }}-${{ runner.arch }}-v1
       - name: Native parser, images and complete client checks
-        timeout-minutes: 2
+        timeout-minutes: 4
         shell: msys2 {0}
         run: |
           export TCL_LIBRARY="$(cygpath -m "$PWD/.build/runtime/lib/tcl8.6")"
           export TK_LIBRARY="$(cygpath -m "$PWD/.build/runtime/lib/tk8.6")"
           export POTATO_HOME="$(cygpath -m "$RUNNER_TEMP/potato-test-profile")"
           .build/runtime/bin/wish86s.exe tests/run.tcl tests/pueblo.test.tcl
+          .build/runtime/bin/wish86s.exe tests/run.tcl tests/mxp.test.tcl
           .build/runtime/bin/wish86s.exe tests/run.tcl tests/client.test.tcl
       - name: Package native preview
         shell: msys2 {0}

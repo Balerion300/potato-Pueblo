@@ -30,6 +30,11 @@ class Fixture:
                     if not fixture.control_ready.wait(5):
                         return
                     with fixture.lock:
+                        # Option replies have no newline; strip the negotiated
+                        # prefix from the first MXP capability/command line.
+                        if line.startswith(b'\xff\xfd['):
+                            fixture.control.write(b'MXP-DO-91\r\n')
+                            line = line[3:]
                         fixture.control.write(line)
                         fixture.control.flush()
 
@@ -41,6 +46,17 @@ class Fixture:
                     if not fixture.game_ready.wait(5):
                         return
                     with fixture.lock:
+                        if line.rstrip() == b'MXP-STOP':
+                            fixture.game.write(b'\xff\xfc[MXP-STOPPED\n')
+                            fixture.game.flush()
+                            continue
+                        if line.rstrip() == b'MXP-START':
+                            payload = b'\xff\xfb[\xff\xfa[\xff\xf0\x1b[1z<VERSION><SUPPORT send.prompt image.* frame>\n'
+                            for offset in range(0, len(payload), 2):
+                                fixture.game.write(payload[offset:offset+2])
+                                fixture.game.flush()
+                                time.sleep(.002)
+                            continue
                         if line.rstrip() == b'PERF-FRAGMENT':
                             # Deliberately split inside UTF-8, ANSI and Pueblo.
                             payload = '\x1b[32mSnowman \u2603 and caf\u00e9\x1b[0m <b>fragmented</b>\r\nPERF-FRAGMENT-DONE\n'.encode()
