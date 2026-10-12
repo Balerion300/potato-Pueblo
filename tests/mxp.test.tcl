@@ -86,6 +86,9 @@ set items [parse {<IMAGE pic.png URL='https://www.example.org/assets/' T=portrai
 assert {[string first {https://www.example.org/assets/portraits/pic.png} [plain $items]]>=0} "IMAGE filename URL and class"
 set imageTag ""; foreach tag [lindex $items 0 1 2] {if {[lindex $tag 0] eq "potatoImage"} {set imageTag $tag}}
 assert {$imageTag ne ""} "IMAGE reuses native loader"
+set items [parse {<SEND look><IMG src='https://www.example.org/pic.png'></SEND>}]
+set actions {}; foreach tag [lindex $items 0 1 2] {if {[lindex $tag 0] eq "potatoAction"} {lappend actions $tag}}
+assert {[llength $actions]==1 && [lindex $actions 0 4 0] eq "send"} "image SEND has one activation and no fallback URL click"
 assert {[action [parse {<SEND 'look&#10;quit'>Unsafe</SEND>}]] eq ""} "control character command rejected"
 assert {[action [parse {<A href='file:///private'>Unsafe</A>}]] eq ""} "unsafe web protocol rejected"
 set items [parse {<SEND look expire=room>Look</SEND>}]; set old [action $items]

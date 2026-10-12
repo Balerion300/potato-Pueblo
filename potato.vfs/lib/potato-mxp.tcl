@@ -120,7 +120,14 @@ proc ::potato::mxp::finishSend {c outputVar} {
     foreach command $commands {if {![::potato::pueblo::command $command]} {set valid 0}}
     if {$valid} {
         set action [action $c [expr {[dict exists $attrs prompt] ? "prompt" : "send"}] [list $commands [::potato::pueblo::get $attrs hint]] $attrs]
-        foreach item $items {lset item 1 2 [concat [lindex $item 1 2] [list $action link]]; lappend output $item}
+        foreach item $items {
+            # A SEND owns one activation. In particular, an enclosed image's
+            # fallback URL must not open a browser as well as send the command.
+            set tags {}
+            foreach tag [lindex $item 1 2] {if {[lindex $tag 0] ne "potatoAction"} {lappend tags $tag}}
+            lset item 1 2 [concat $tags [list $action link]]
+            lappend output $item
+        }
     } else {lappend output {*}$items}
     dict set state($c) send {}; dict unset state($c) sendItems
 }
