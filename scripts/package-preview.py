@@ -65,6 +65,10 @@ for path in (root / "README.md", root / "docs" / "PUEBLO.md"):
     tcl="515167c897a7c8066abfbd71e8fe7bd8bf3569de", tk="6dbe68819aac4a22f6f7a143133ce26c5e8d2b05",
     tls=(runtime / "TLS-BUILD.txt").read_text() if (runtime / "TLS-BUILD.txt").exists() else "legacy bundled TclTLS"), indent=2))
 if system == "Darwin":
+    # Sign after Info.plist, runtime, scripts and BUILD.json are final. Signing
+    # only the standalone launcher does not seal an application bundle.
+    subprocess.run([sys.executable, str(root / 'scripts/sign-mac-bundle.py'),
+                    str(contents.parent)], check=True)
     subprocess.run(["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", str(destination), str(out / (name + ".zip"))], check=True)
 else:
     shutil.make_archive(str(out / name), "zip", out, name)

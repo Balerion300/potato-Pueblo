@@ -54,6 +54,9 @@ with tempfile.TemporaryDirectory(prefix="potato-extracted-preview-") as extracte
     command = [str(executable), str(root / "tests/run.tcl"), str(root / "tests/client.test.tcl")]
     if platform.system() == "Darwin":
         contents = resources.parent
+        subprocess.run(['codesign', '--verify', '--deep', '--strict', '--verbose=2',
+                        str(contents.parent)], check=True)
+        assert (contents / '_CodeSignature/CodeResources').is_file()
         info = plistlib.loads((contents / "Info.plist").read_bytes())
         executable = contents / "MacOS" / info["CFBundleExecutable"]
         # Exercise the actual app launcher with no inherited runtime overrides.
