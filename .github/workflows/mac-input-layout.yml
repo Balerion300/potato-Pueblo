@@ -1,0 +1,23 @@
+name: Mac input layout acceptance
+on:
+  push:
+    branches: ['codex/pueblo-inline-images']
+    paths: ['tests/input-layout.tcl', 'scripts/check-input-layout.py', '.github/workflows/mac-input-layout.yml']
+permissions:
+  contents: read
+jobs:
+  input:
+    runs-on: macos-26
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check released application input layout
+        run: |
+          mkdir -p released
+          curl -fL 'https://github.com/Balerion300/potato-Pueblo/releases/download/preview-2026-10-16-mac-signature-fix/Potato-Pueblo-Preview-Darwin-arm64.zip' -o released/preview.zip
+          python3 scripts/check-input-layout.py released/preview.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Mac-input-layout
+          path: artifacts/input-layout/*
