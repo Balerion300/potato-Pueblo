@@ -1721,7 +1721,9 @@ proc ::skin::potato::savePrefs {} {
 		return;
 	}
 	inputWindows [::potato::up] 2
-	update
+	# Only settle geometry before measuring. Processing arbitrary native and
+	# socket events here can keep Aqua's full update loop from returning.
+	update idletasks
 	set opts(input1height) [winfo height $widgets(pane,btm,pane,top)]
 	set opts(input2height) [winfo height $widgets(pane,btm,pane,btm)]
 	set opts(inputheights) [winfo height $widgets(pane,btm,pane)]

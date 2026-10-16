@@ -66,5 +66,5 @@ puts $f [list INPUT-SEND $sent failures $::failures]; close $f
 if {[info exists ::env(POTATO_ASSERT_INPUT)] && (!$sent || $::failures)} {error "Input acceptance failed: sent=$sent geometryFailures=$::failures"}
 ::potato::disconnect $c 0
 close $::peer
-::skin::potato::savePrefs
+if {[info exists ::env(POTATO_ASSERT_INPUT)]} {::skin::potato::savePrefs}
 destroy .
