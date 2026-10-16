@@ -27,5 +27,7 @@ with tempfile.TemporaryDirectory(prefix='potato-input-layout-') as tmp:
             if scenario=='collapsed':env['POTATO_COLLAPSED_INPUT']='1'
             if platform.system()!='Darwin':
                 env.update(TCL_LIBRARY=str(resources/'runtime/lib/tcl8.6'),TK_LIBRARY=str(resources/'runtime/lib/tk8.6'))
-            subprocess.run([str(exe),str(root/'tests/run.tcl'),str(root/'tests/input-layout.tcl')],env=env,check=True,timeout=45)
-            print(receipt.read_text(),flush=True)
+            try:
+                subprocess.run([str(exe),str(root/'tests/run.tcl'),str(root/'tests/input-layout.tcl')],env=env,check=True,timeout=45)
+            finally:
+                print(receipt.read_text(),flush=True)

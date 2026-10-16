@@ -54,10 +54,12 @@ set ::potato::conn($c,twoInputWindows) 0
 ::potato::toggleInputWindows $c 0
 record single-input $c
 set i $::potato::conn($c,input1)
-$i delete 1.0 end
-focus -force $i
-$i insert 1.0 input-fixture-command
-event generate $i <KeyPress-Return>
+if {[winfo ismapped $i] && [winfo height $i]>=[font metrics [$i cget -font] -linespace]} {
+    $i delete 1.0 end
+    focus -force $i
+    $i insert 1.0 input-fixture-command
+    event generate $i <KeyPress-Return>
+}
 set limit [expr {[clock milliseconds]+3000}]
 while {[lsearch -exact $::wire input-fixture-command]<0 && [clock milliseconds]<$limit} {pump}
 set sent [expr {[lsearch -exact $::wire input-fixture-command]>=0}]
