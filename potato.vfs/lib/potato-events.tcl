@@ -194,7 +194,13 @@ proc ::potato::eventsMatch {c _tagged _lineNoansi _eventInfo} {
 	foreach x $tmp {
 		foreach {start end} $x {break}
 		for {set i $start} {$i <= $end} {incr i} {
+			set explicit 0
+			foreach tag [lindex $tagged [list $i 1 2]] {
+				if {[lindex $tag 0] eq "potatoAction"} {set explicit 1; break}
+			}
+			if {!$explicit} {
 			lset tagged [list $i 1 2] [concat [lindex $tagged [list $i 1 2]] link weblink]
+			}
 		}
 	}
 

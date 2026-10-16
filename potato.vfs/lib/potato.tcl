@@ -2451,7 +2451,7 @@ proc ::potato::launchWebPage {url} {
 			HP-UX -
 			Linux  -
 			SunOS {
-				foreach executable [list firefox mozilla netscape iexplorer \
+				foreach executable [list xdg-open firefox mozilla netscape iexplorer \
 					opera lynx w3m links epiphany galeon konqueror mosaic amaya \
 					browsex elinks] {
 					set executable [auto_execok $executable]
@@ -3041,7 +3041,7 @@ proc ::potato::connect {c first} {
 			# The '1' below used to be checking for TLS >= 1.6, but I don't recall what changed between 1.5 and 1.6
 			# to necessitate it. Since we now require at least 1.6.7, it's left in like this, with those note so I
 			# remember to look it up later.
-			if { [catch {::tls::import $fid -command ::potato::connectVerifySSL -request 0 -cipher "ALL"} import] || \
+			if { [catch {::tls::import $fid -command ::potato::connectVerifySSL -request 0 -require 0 -cipher "ALL" -ssl2 0 -ssl3 0 -tls1 0 -tls1.1 0 -tls1.2 1 -servername $host} import] || \
 				(1 && [catch {fconfigure $fid -blocking 0 -buffering none} fconfig]) || \
 				[catch {::tls::handshake $fid} handshake] } {
 				set sslError "Unknown SSL Error";# do not translate
@@ -3174,6 +3174,8 @@ proc ::potato::connectComplete {c} {
 	set id $conn($c,id)
 
 	set conn($c,connected) 1
+	::potato::pueblo::reset $c
+	::potato::mxp::reset $c
 
 	set conn($c,stats,connAt) [clock seconds]
 	set conn($c,stats,formatted) [statsFormat 0]
@@ -3203,12 +3205,10 @@ proc ::potato::connectComplete {c} {
 	# and a telnet IAC. So, get data in binary format, and convert manually after telnet parsing.
 	fconfigure $id -translation binary -encoding binary -eof {} -blocking 0 -buffering none
 
-	set peer [fconfigure $id -peername]
-	if { [lindex $peer 0] in [list "" [lindex $peer 1]] } {
-		set str [lindex $peer 0]
-	} else {
-		set str "[lindex $peer 0] ([lindex $peer 1])"
-	}
+	# -peername performs synchronous reverse DNS even on a nonblocking
+	# socket. A slow resolver must not stall the UI before readable events
+	# are registered. The selected address already identifies this connection.
+	set str $conn($c,address,disp)
 	outputSystem $c [T "Connected - %s - %s" $str [timestamp]]
 
 	set conn($c,telnet,state) 0
@@ -3265,6 +3265,10 @@ proc ::potato::connectVerifySSL {option args} {
 			upvar #0 tls::$chan cb
 			set cb($major) $minor
 			#puts "TLS/$chan: $major/$minor: $state"
+		}
+		"message" - "session" {
+			# TclTLS 2 adds informational notifications; no session cache.
+			return;
 		}
 		default {
 			return -code error "bad option \"$option\": must be one of error, info, or verify"
@@ -3513,6 +3517,8 @@ proc ::potato::disconnect {{c ""} {prompt 1}} {
 		outputSystem $c [T "Connection attempt cancelled. - %s" [timestamp]]
 	}
 	set conn($c,connected) 0
+	::potato::pueblo::reset $c
+	::potato::mxp::reset $c
 	set conn($c,address) [list]
 	set conn($c,address,disp) [T "Not Connected"]
 	timersStop $c
@@ -3650,7 +3656,7 @@ proc ::potato::get_mushage {c} {
 		return;
 	}
 
-	set disc [catch {::potato::ioRead $conn($c,id) 10} text]
+	set disc [catch {::potato::ioRead $conn($c,id) 1024} text]
 	if { $disc } {
 		disconnect $c 0
 		boot_reconnect $c
@@ -3660,16 +3666,37 @@ proc ::potato::get_mushage {c} {
 	if { $conn($c,debugPackets) } {
 		debug_packet $c 1 $text
 	}
-	if { [hasProtocol $c telnet] || ($world($conn($c,world),telnet) && (!$world($conn($c,world),telnet,timeout) ||([clock seconds] - $conn($c,stats,connAt)) < 90))} {
+	if { [hasProtocol $c telnet] || ($world($conn($c,world),telnet) && (!$world($conn($c,world),telnet,timeout) || [::potato::mxp::option $c] || ([clock seconds] - $conn($c,stats,connAt)) < 90))} {
 		set text [::potato::telnet::process $c $text]
 	}
 
 	append conn($c,outputBuffer) $text
-	while { [set nextNewline [string first $conn($c,id,lineending) $conn($c,outputBuffer)]] > -1 } {
-		set toProcess [encoding convertfrom $conn($c,id,encoding) [string range $conn($c,outputBuffer) 0 [expr {$nextNewline-1}]]]
-		set conn($c,outputBuffer) [string range $conn($c,outputBuffer) [expr {$nextNewline+$conn($c,id,lineending,length)}] end]
-		get_mushageProcess $c $toProcess
+	# PennMUSH's Pueblo response uses LF even on a CRLF MUSH connection.
+	# Accept both forms; retain the configured ending for outgoing commands.
+	set ownBatch [expr {![info exists conn($c,outputFollow)]}]
+	if {$ownBatch} {set conn($c,outputFollow) [dict create]}
+	set processed 0
+	try {
+		while { [set nextNewline [string first "\n" $conn($c,outputBuffer)]] > -1 } {
+			set rawLine [string range $conn($c,outputBuffer) 0 [expr {$nextNewline-1}]]
+			if {[string index $rawLine end] eq "\r"} {set rawLine [string range $rawLine 0 end-1]}
+			set toProcess [encoding convertfrom $conn($c,id,encoding) $rawLine]
+			set conn($c,outputBuffer) [string range $conn($c,outputBuffer) [expr {$nextNewline+1}] end]
+			set processed 1
+			get_mushageProcess $c $toProcess
+		}
+	} finally {
+		if {$ownBatch && [info exists conn($c,outputFollow)]} {
+			set follow $conn($c,outputFollow)
+			unset conn($c,outputFollow)
+			dict for {widget unused} $follow {
+				if {[winfo exists $widget]} {$widget see end}
+			}
+		}
 	}
+	if {$ownBatch && $processed && [info exists conn($c,world)]} {skinStatus $c}
+	# Flush layout once per bounded input batch, instead of once per line.
+	update idletasks
 	return;
 
 };# ::potato::get_mushage
@@ -3776,7 +3803,12 @@ proc ::potato::get_mushageProcess {c line} {
 	# [list "string" [list "fgTag" "bgTag" [list "other" "tags"]]]
 	set tagged [list]
 	# ANSI escape char is \x1B, char code 27
-	if { [regsub -all {\x1B.*?m} $line "" lineNoansi] } {
+	if {[::potato::mxp::active $c]} {
+		set tagged [::potato::mxp::line $c $line]
+		set lineNoansi ""
+		foreach item $tagged {append lineNoansi [lindex $item 0]}
+		if {$line ne "" && ![llength $tagged]} {return}
+	} elseif { [regsub -all {\x1B.*?m} $line "" lineNoansi] } {
 		# We have ANSI
 		set toparse $line
 		set tagged [parseANSI $line conn $c]
@@ -3786,6 +3818,17 @@ proc ::potato::get_mushageProcess {c line} {
 		foreach x [split $line ""] {
 			lappend tagged [list $x $tags]
 		}
+	}
+
+	# Parse display markup before triggers/logging so their text remains readable.
+	if {![::potato::mxp::active $c] && [::potato::pueblo::option $c enabled]} {
+		set wasText [expr {$lineNoansi ne ""}]
+		lappend tagged [list "\n" [get_mushageColours conn $c]]
+		set tagged [::potato::pueblo::parse $c $tagged]
+		if {[llength $tagged] && [lindex $tagged end 0] eq "\n"} {set tagged [lrange $tagged 0 end-1]}
+		set lineNoansi ""
+		foreach item $tagged {append lineNoansi [lindex $item 0]}
+		if {$wasText && ![llength $tagged]} {return}
 	}
 
 	set insertedAnything 0 ;# we only flash the window if we have
@@ -3867,7 +3910,7 @@ proc ::potato::get_mushageProcess {c line} {
 	} else {
 		set endPos end
 	}
-	set aE [atEnd $t]
+	set aE [outputAtEnd $c $t]
 	if { !$empty && !$omit && !$limit && $showNewAct } {
 		if { $world($w,act,clearOldNewActNotices) && [llength [$t tag nextrange newact 1.0]] } {
 			$t delete {*}[$t tag ranges newact]
@@ -3877,11 +3920,16 @@ proc ::potato::get_mushageProcess {c line} {
 	}
 
 	if { !$empty && !$omit } {
+		set puebloStart [$t index "$endPos - 1 indices"]
 		$t insert $endPos "\n" [lindex [list "" limited] $limit] {*}$inserts
 		$t insert $endPos  [clock seconds] [list timestamp]
+		::potato::pueblo::render $c $t $puebloStart
+		if {$world($w,outputLimit,on) && [string is integer -strict $world($w,outputLimit,to)] && $world($w,outputLimit,to) > 0} {
+			$t delete 1.0 end-$world($w,outputLimit,to)lines
+		}
 		set insertedAnything 1
 		if { $aE } {
-			$t see end
+			followOutput $c $t
 		}
 	}
 
@@ -3899,17 +3947,19 @@ proc ::potato::get_mushageProcess {c line} {
 		foreach x [parseSpawnList $c $spawns] {
 			set sname [lindex $x 0]
 			set swidget [lindex $x 1]
-			set aE [atEnd $swidget]
+			set aE [outputAtEnd $c $swidget]
+			set puebloStart [$swidget index end-1c]
 			if { [$swidget count -chars 1.0 3.0] != 1 } {
 				$swidget insert end "\n" "" {*}$inserts [clock seconds] [list timestamp]
 			} else {
 				$swidget insert end {*}$inserts [clock seconds] [list timestamp]
 			}
+			::potato::pueblo::render $c $swidget $puebloStart
 			if { !$noActivity } {
 				::skin::$potato(skin)::spawnUpdate $c $sname
 			}
 			if { $aE } {
-				$swidget see end
+				followOutput $c $swidget
 			}
 			if { $limit } {
 				$swidget delete 1.0 end-${limit}lines
@@ -3955,9 +4005,8 @@ proc ::potato::get_mushageProcess {c line} {
 
 	beepNumTimes $beepCount
 
-	skinStatus $c
-
-	update idletasks
+	# Refresh once at the end of a receive batch; direct output remains immediate.
+	if {![info exists conn($c,outputFollow)]} {skinStatus $c}
 
 	return;
 
@@ -4104,6 +4153,22 @@ proc ::potato::destroySpawnWindow {c name} {
 	return;
 
 };# ::potato::destroySpawnWindow
+
+# During a socket batch, remember views following the bottom before insertion.
+# Readers in scrollback keep their position; direct output still scrolls immediately.
+proc ::potato::outputAtEnd {c widget} {
+    variable conn
+    if {[info exists conn($c,outputFollow)] && [dict exists $conn($c,outputFollow) $widget]} {return 1}
+    return [atEnd $widget]
+}
+proc ::potato::followOutput {c widget} {
+    variable conn
+    if {[info exists conn($c,outputFollow)]} {
+        dict set conn($c,outputFollow) $widget 1
+    } else {
+        $widget see end
+    }
+}
 
 #: proc ::potato::atEnd
 #: arg t text widget
@@ -4613,7 +4678,7 @@ proc ::potato::connMaybeNAWS {{c ""}} {
 #: return number of lines
 proc ::potato::countWindowHeight {win} {
 
-	update
+	# Called by resize callbacks: never re-enter the event loop here.
 	set winheight [winfo height $win]
 	set metrics [font metrics [$win cget -font]]
 	set lineheight [dict get $metrics -linespace]
@@ -6142,7 +6207,8 @@ proc ::potato::grid_with_scrollbars {widget x y} {
 #: return nothing
 proc ::potato::center {win} {
 
-	update
+	# Geometry requires idle layout work, not socket/timer callbacks.
+	update idletasks
 	if { ![winfo exists $win] } {
 		return;
 	}
@@ -6570,6 +6636,7 @@ proc ::potato::os {} {
 #: return nothing
 proc ::potato::main {} {
 	variable potato;
+	set potato(menusReady) 0
 	variable path;
 	variable skins;
 	variable misc;
@@ -6691,7 +6758,17 @@ proc ::potato::main {} {
 		set path(startupCmds) [file join ~ .potato potato.startup]
 		set path(i18n) [file join ~ .potato i18n]
 	}
+	# Explicit isolated profile directory, also used by automated/native previews.
+	if {[info exists ::env(POTATO_HOME)] && $::env(POTATO_HOME) ne ""} {
+		set profile [file normalize $::env(POTATO_HOME)]
+		file mkdir $profile
+		foreach {key name} {world worlds skins skins userlib lib preffile potato.ini custom potato.custom startupCmds potato.startup i18n i18n} {
+			set path($key) [file join $profile $name]
+		}
+		set dev [file join $profile potato.dev]
+	} else {
 	set dev [file join $path(homedir) potato.dev]
+	}
 
 	# This MUST be after basic_reqs, as the [tk] command isn't available on
 	# linux until that's called.
@@ -6802,6 +6879,7 @@ proc ::potato::main {} {
 	set running 1;# so potato.tcl can be re-sourced without re-running this proc
 
 	newConnection 0
+	set potato(menusReady) 1
 
 	# This must come before setUpBindings
 	setUpFlash
@@ -8151,7 +8229,7 @@ proc ::potato::build_menu_file {m} {
 		-command ::potato::showStats -state $state
 	$m add command {*}[menu_label [T "Show &MSSP Info"]] \
 		-command ::potato::showMSSP \
-		-state [expr {[llength $conn([up],telnet,mssp)] ? "normal" : "disabled"}]
+		-state [expr {[info exists conn([up],telnet,mssp)] && [llength $conn([up],telnet,mssp)] ? "normal" : "disabled"}]
 
 	$m add separator
 	createMenuTask $m exit
@@ -8342,6 +8420,13 @@ proc ::potato::build_menu_help {m} {
 #: proc ::potato::setUpMenu
 #: desc set up the menu in the main window
 #: return nothing
+proc ::potato::postMenu {builder widget} {
+	variable potato;
+	# Aqua preprocesses menus while startup layout is still running.
+	if {![info exists potato(menusReady)] || !$potato(menusReady)} {return}
+	$builder $widget
+}
+
 proc ::potato::setUpMenu {} {
 	variable menu;
 
@@ -8352,16 +8437,16 @@ proc ::potato::setUpMenu {} {
 	menu $menuname -tearoff 0
 	. configure -menu $menuname
 	catch {destroy {*}[winfo children $menuname]}
-	set menu(file,path) [menu $menuname.file -tearoff 0 -postcommand [list ::potato::build_menu_file $menuname.file]]
-	set menu(edit,path) [menu $menuname.edit -tearoff 0 -postcommand [list ::potato::build_menu_edit $menuname.edit]]
+	set menu(file,path) [menu $menuname.file -tearoff 0 -postcommand [list ::potato::postMenu ::potato::build_menu_file $menuname.file]]
+	set menu(edit,path) [menu $menuname.edit -tearoff 0 -postcommand [list ::potato::postMenu ::potato::build_menu_edit $menuname.edit]]
 	set menu(edit,convert,path) [menu $menuname.edit.convert -tearoff 0]
 	set menu(connect,path) [menu $menuname.file.connect -tearoff 0 -postcommand [list ::potato::rebuildConnectMenu $menuname.file.connect]]
-	set menu(view,path) [menu $menuname.view -tearoff 0 -postcommand [list ::potato::build_menu_view $menuname.view]]
-	set menu(log,path) [menu $menuname.log -tearoff 0 -postcommand [list ::potato::build_menu_log $menuname.log]]
-	set menu(log,stop,path) [menu $menuname.log.stop -tearoff 0 -postcommand [list ::potato::build_menu_log_stop $menuname.log.stop]]
-	set menu(options,path) [menu $menuname.options -tearoff 0 -postcommand [list ::potato::build_menu_options $menuname.options]]
-	set menu(tools,path) [menu $menuname.tools -tearoff 0 -postcommand [list ::potato::build_menu_tools $menuname.tools]]
-	set menu(help,path) [menu $menuname.help -tearoff 0 -postcommand [list ::potato::build_menu_help $menuname.help]]
+	set menu(view,path) [menu $menuname.view -tearoff 0 -postcommand [list ::potato::postMenu ::potato::build_menu_view $menuname.view]]
+	set menu(log,path) [menu $menuname.log -tearoff 0 -postcommand [list ::potato::postMenu ::potato::build_menu_log $menuname.log]]
+	set menu(log,stop,path) [menu $menuname.log.stop -tearoff 0 -postcommand [list ::potato::postMenu ::potato::build_menu_log_stop $menuname.log.stop]]
+	set menu(options,path) [menu $menuname.options -tearoff 0 -postcommand [list ::potato::postMenu ::potato::build_menu_options $menuname.options]]
+	set menu(tools,path) [menu $menuname.tools -tearoff 0 -postcommand [list ::potato::postMenu ::potato::build_menu_tools $menuname.tools]]
+	set menu(help,path) [menu $menuname.help -tearoff 0 -postcommand [list ::potato::postMenu ::potato::build_menu_help $menuname.help]]
 
 	$menuname add cascade -menu $menuname.file {*}[menu_label [T "&File"]]
 	set menu(file) [$menuname index end]
@@ -11444,6 +11529,8 @@ proc ::potato::timeFmt {seconds full} {
 proc ::potato::up {} {
 	variable potato;
 
+	# Aqua can preprocess menus before the first tab is selected.
+	if {$potato(up) eq ""} {return 0}
 	return $potato(up);
 
 };# ::potato::up
@@ -12401,6 +12488,9 @@ proc ::potato::taskState {task {c ""}} {
 	if { $c eq "" } {
 		set c [up]
 	}
+	# Aqua can preprocess menus before the first tab has been created.
+	# An empty current connection is the same as the offline tab for actions.
+	if {$c eq ""} {set c 0}
 
 	if { ![taskExists $task] } {
 		return 0; # unknown task
@@ -12672,6 +12762,12 @@ proc ::potato::setPrompt {c prompt} {
 
 	# ANSI-less version
 	set hasAnsi [regsub -all {\x1B.*?m} $prompt "" noAnsi]
+	set mxpPrompt [expr {$prompt ne "" && [::potato::mxp::active $c]}]
+	if {$mxpPrompt} {
+		set tagged [::potato::mxp::line $c $prompt 0]
+		set noAnsi ""
+		foreach item $tagged {append noAnsi [lindex $item 0]}
+	}
 	if { $noAnsi eq "" } {
 		set conn($c,prompt) ""
 	} else {
@@ -12685,7 +12781,9 @@ proc ::potato::setPrompt {c prompt} {
 		}
 	} else {
 		set aE [atEnd $t]
-		if { $hasAnsi } {
+		if {$mxpPrompt} {
+			set inserts [flattenParsedANSI $tagged [list prompt margins]]
+		} elseif { $hasAnsi } {
 			# We need to parse out the ANSI. Le sigh
 			set ansi($c,ansi,fg) fg
 			set ansi($c,ansi,bg) bg
@@ -12703,6 +12801,7 @@ proc ::potato::setPrompt {c prompt} {
 		} else {
 			$t insert end {*}$inserts
 		}
+		if {$mxpPrompt} {::potato::pueblo::render $c $t prompt.first}
 		if { $aE } {
 			$t see end
 		}
@@ -12780,7 +12879,7 @@ proc ::potato::basic_reqs {} {
 	# OK, that's Tcl and Tk sorted. Now let's load in the other parts of Potato from separate
 	# files. These really shouldn't be an issue....
 
-	set files [list telnet proxy wikihelp spell encoding config events slash]
+	set files [list telnet proxy wikihelp spell encoding config events slash pueblo pueblo-images mxp]
 
 	set packages [list \
 		[list treeviewUtils] \

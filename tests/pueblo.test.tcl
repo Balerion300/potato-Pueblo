@@ -1,0 +1,199 @@
+package require Tk 8.6
+wm withdraw .
+set root [file normalize [file join [file dirname [info script]] ..]]
+source [file join $root potato.vfs lib potato-pueblo.tcl]
+source [file join $root potato.vfs lib potato-pueblo-images.tcl]
+set ::potato::conn(1,world) 1
+set ::potato::conn(1,connected) 1
+foreach key {enabled images commands} {set ::potato::world(1,pueblo,$key) 1}
+set ::sent {}
+set ::opened {}
+proc ::potato::send_to_noparse {c value args} {lappend ::sent $value}
+proc ::potato::launchWebPage {value} {lappend ::opened $value}
+proc ::potato::atEnd {w} {return [expr {[lindex [$w yview] 1] >= 0.999}]}
+proc tagged {s} {
+    set result {}
+    foreach ch [split $s ""] {lappend result [list $ch {fg bg {}}]}
+    return $result
+}
+proc plain {items} {set s ""; foreach item $items {append s [lindex $item 0]}; return $s}
+proc assert {value message} {
+    if {![uplevel 1 [list expr $value]]} {error "FAIL: $message"}
+    incr ::checks
+}
+proc start {} {
+    ::potato::pueblo::reset 1
+    ::potato::pueblo::parse 1 [tagged {This world is Pueblo 1.10 Enhanced.}]
+    ::potato::pueblo::parse 1 [tagged {</xch_mudtext><img xch_mode=purehtml><xch_page clear=text>}]
+}
+set ::checks 0
+# Real Pueblo command values are in XCH_CMD, with no HREF required. Test
+# arbitrary wire fragmentation and literal delivery of command metacharacters.
+set commandFixture {<a XCH_CMD="look">Stone Garden</a><a xch_cmd='+views'>Views</a><a xch_cmd="+view sword &amp; say {hi}; [exec bad]" href="https://example.org">Sword</a>}
+for {set split 0} {$split <= [string length $commandFixture]} {incr split} {
+    start
+    set ::sent {}
+    set a [::potato::pueblo::parse 1 [tagged [string range $commandFixture 0 $split-1]]]
+    set b [::potato::pueblo::parse 1 [tagged [string range $commandFixture $split end]]]
+    assert {$::sent eq {}} "command parsing never sends at fragment $split"
+    set actions {}
+    foreach item [concat $a $b] {
+        foreach tag [lindex $item 1 2] {
+            if {[lindex $tag 0] eq "potatoAction" && $tag ni $actions} {lappend actions $tag}
+        }
+    }
+    foreach action $actions {::potato::pueblo::activate {*}[lrange $action 1 end]}
+    assert {$::sent eq [list look +views {+view sword & say {hi}; [exec bad]}]} "standard command values at fragment $split"
+}
+start
+set ::sent {}
+set invalid [::potato::pueblo::parse 1 [tagged {<a xch_cmd="" href="https://example.org">Empty</a><a xch_cmd="look&#10;quit">Multiline</a>}]]
+foreach item $invalid {assert {"link" ni [lindex $item 1 2]} "invalid explicit commands are inert"}
+start
+assert {[lindex $::sent end] eq "PUEBLOCLIENT 1.10"} negotiation
+assert {[plain [::potato::pueblo::parse 1 [tagged {<img xch_mode=purehtml><xch_page clear=text>}]]] eq ""} "PennMUSH mode controls are invisible"
+assert {[plain [::potato::pueblo::parse 1 [tagged "<xch_mudtext><b>literal</b> &amp;\n"]]] eq "<b>literal</b> &amp;\n"} "opening MUDTEXT restores literal output"
+assert {[plain [::potato::pueblo::parse 1 [tagged {</xch_mudtext><b>caption</b>}]]] eq "caption"} "closing MUDTEXT enters HTML"
+set fixture {<pre>  Name&#9;House<BR>
+<a xch_cmd="true" href="look &amp; say {hi}; [exec bad]">http://caption.example.org</a><br>
+<a href="https://www.example.org/path?a=1&amp;b=2">Website</a><img src="https://www.example.org/pic.png" alt="Portrait"></pre>}
+set expected [::potato::pueblo::parse 1 [tagged $fixture]]
+set expectedText [plain $expected]
+for {set split 0} {$split <= [string length $fixture]} {incr split} {
+    start
+    set a [::potato::pueblo::parse 1 [tagged [string range $fixture 0 $split-1]]]
+    set b [::potato::pueblo::parse 1 [tagged [string range $fixture $split end]]]
+    assert {[plain [concat $a $b]] eq $expectedText} "fragment $split"
+}
+assert {[string first "Name\tHouse\nhttp" $expectedText] >= 0} "PRE BR/wire newline normalization and tabs"
+foreach bad {file:///tmp/a http://localhost/a http://127.0.0.1/a http://10.0.0.1/a http://host/a https://user:pass@example.org/a https://example.local/a javascript:bad {https://example.org/a
+b} https://example.org:99999/a} {
+    assert {![::potato::pueblo::url $bad]} "blocked URL $bad"
+}
+assert {[::potato::pueblo::url https://www.example.org/a?q=1&b=2]} "public URL"
+assert {![::potato::pueblo::command "look\nquit"]} "single-line commands"
+assert {[::potato::pueblo::entities {&lt;&gt;&amp;&quot;&apos;&#9;} ] eq "<>&\"'\t"} entities
+start
+set ::sent {}
+set result [::potato::pueblo::parse 1 [tagged {<a xch_cmd="true" href="look">Click</a>}]]
+assert {$::sent eq {}} "parsing never executes commands"
+set action [lindex $result 0 1 2 0]
+::potato::pueblo::activate {*}[lrange $action 1 end]
+assert {$::sent eq {look}} "explicit command activation"
+set ::potato::world(1,pueblo,commands) 0
+::potato::pueblo::activate {*}[lrange $action 1 end]
+assert {[llength $::sent] == 1} "command opt out"
+set ::potato::world(1,pueblo,commands) 1
+::potato::pueblo::reset 1
+::potato::pueblo::activate {*}[lrange $action 1 end]
+assert {[llength $::sent] == 1} "stale connection action"
+set ::potato::world(1,pueblo,enabled) 0
+assert {[plain [::potato::pueblo::parse 1 [tagged {<b>literal &amp;</b>}]]] eq {<b>literal &amp;</b>}} "disabled passthrough"
+set ::potato::world(1,pueblo,enabled) 1
+::potato::pueblo::reset 1
+assert {[plain [::potato::pueblo::parse 1 [tagged {<b>literal &amp;</b>}]]] eq {<b>literal &amp;</b>}} "unnegotiated passthrough"
+assert {[plain [::potato::pueblo::parse 1 [tagged {<incomplete}]]] eq {<incomplete}} "unnegotiated partial angle bracket passthrough"
+start
+assert {[plain [::potato::pueblo::parse 1 [tagged "<pre>A<BR>\r\nB</pre>"]]] eq "A\nB"} "PRE CRLF following BR"
+start
+::potato::pueblo::parse 1 [tagged [string repeat < 9000]]
+assert {[llength [dict get $::potato::pueblo::state(1) pending]] <= 8192} "bounded partial tags"
+set png [binary decode base64 {iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP4z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg==}]
+assert {[::potato::pueblo::images::dimensions $png] eq {2 2}} "PNG dimensions"
+set huge [string replace $png 16 23 [binary format II 99999 99999]]
+assert {[catch {::potato::pueblo::images::dimensions $huge}]} "oversize header rejected"
+assert {[catch {::potato::pueblo::images::dimensions not-an-image}]} "non-image rejected"
+# Use an actual Tk transcript and checksum-valid PNG created by Tk itself.
+set photo [image create photo -width 40 -height 20]
+$photo put red -to 0 0 40 20
+set png [$photo data -format png]
+image delete $photo
+text .output -width 60 -height 12
+pack .output
+wm deiconify .
+update
+start
+set items [::potato::pueblo::parse 1 [tagged {Before<img src="https://www.example.org/pic.png" alt="Portrait">After}]]
+foreach item $items {
+    lassign $item ch tags
+    .output insert end $ch [concat {*}$tags]
+}
+set imageTag ""
+foreach tag [.output tag names] {if {[lindex $tag 0] eq "potatoImage"} {set imageTag $tag}}
+set key [list .output $imageTag]
+dict set ::potato::pueblo::images::seen $key 1
+::potato::pueblo::images::install $key $png
+assert {[llength [.output image names]] == 1} "image inside transcript"
+assert {[string first {[Portrait: https://www.example.org/pic.png]} [.output get 1.0 end]] >= 0} "copy/log URL fallback"
+assert {[dict size $::potato::pueblo::images::photos] == 1} "tracked photo"
+.output delete 1.0 end
+::potato::pueblo::images::collect
+assert {[dict size $::potato::pueblo::images::photos] == 0} "trim/clear releases photo"
+assert {$::potato::pueblo::images::totalPixels == 0} "image budget released"
+destroy .output
+# Run the real asynchronous curl transport against a loopback fixture. Only this
+# test temporarily admits its exact URL; no production setting enables loopback.
+set photo [image create photo -width 800 -height 400]
+$photo put #34689a -to 0 0 800 400
+set ::fixturePNG [$photo data -format png]
+image delete $photo
+proc httpAccept {channel args} {
+    fconfigure $channel -translation binary -encoding binary -blocking 0
+    fileevent $channel readable [list httpReply $channel]
+}
+proc httpReply {channel} {
+    read $channel
+    fileevent $channel readable {}
+    puts -nonewline $channel "HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: [string length $::fixturePNG]\r\nConnection: close\r\n\r\n$::fixturePNG"
+    close $channel
+}
+set server [socket -server httpAccept -myaddr 127.0.0.1 0]
+set port [lindex [fconfigure $server -sockname] end]
+set ::fixtureURL "http://127.0.0.1:$port/pic.png"
+rename ::potato::pueblo::url ::potato::pueblo::productionURL
+proc ::potato::pueblo::url {value} {
+    return [expr {$value eq $::fixtureURL || [productionURL $value]}]
+}
+text .network -width 80 -height 15
+pack .network -expand 1 -fill both
+wm geometry . 700x450
+update
+set tag [list potatoImage 999 $::fixtureURL {}]
+.network insert end "[string repeat "Line before image\n" 25]" {}
+.network insert end {[Fixture URL fallback]} [list $tag]
+.network insert end "\nText after image\n" {}
+.network yview moveto 1.0
+update
+::potato::pueblo::images::request 1 .network $tag
+set deadline [expr {[clock milliseconds]+5000}]
+while {[llength [.network image names]]==0 && [clock milliseconds]<$deadline} {after 10; update}
+assert {[llength [.network image names]]==1} "actual asynchronous curl image download"
+assert {[::potato::atEnd .network]} "bottom follows image load"
+set key [list .network $tag]
+lassign [dict get $::potato::pueblo::images::photos $key] display
+set oldWidth [image width $display]
+wm geometry . 180x450
+update
+::potato::pueblo::images::collect
+assert {[image width $display] < $oldWidth} "image adapts to narrower widget"
+::potato::pueblo::images::collect
+set collectors 0
+foreach pending [after info] {
+    if {[lindex [after info $pending] 0] eq "::potato::pueblo::images::collect"} {incr collectors}
+}
+assert {$collectors==1} "explicit collection keeps one cleanup timer"
+wm geometry . 700x450
+update
+::potato::pueblo::images::collect
+assert {[image width $display] == $oldWidth} "image restores size after widening"
+set ::potato::world(1,pueblo,images) 0
+::potato::pueblo::images::collect
+assert {[llength [.network image names]]==0} "image opt-out removes pixels"
+assert {[string first {[Fixture URL fallback]} [.network get 1.0 end]]>=0} "opt-out retains fallback"
+set ::potato::world(1,pueblo,images) 1
+close $server
+rename ::potato::pueblo::url {}
+rename ::potato::pueblo::productionURL ::potato::pueblo::url
+destroy .network
+puts "PASS: $::checks checks (Tcl [info patchlevel], Tk [package present Tk], [tk windowingsystem])"
+destroy .

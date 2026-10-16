@@ -1,0 +1,177 @@
+name: Native preview
+on:
+  push:
+    branches: ['codex/pueblo-inline-images']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-preview-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  unix:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-24.04-arm, macos-15, macos-15-intel, macos-26, macos-26-intel]
+    runs-on: ${{ matrix.os }}
+    env:
+      POTATO_RUNNER_LABEL: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record operating system and architecture
+        run: python3 scripts/report_platform.py
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxft-dev libxss-dev libfontconfig1-dev xvfb python3-venv
+      - uses: actions/cache/restore@v4
+        id: runtime
+        with:
+          path: .build/runtime
+          key: potato-static-8.6.18-${{ matrix.os }}-${{ runner.arch }}-v2
+      - name: Build pinned Tcl/Tk 8.6.18
+        if: steps.runtime.outputs.cache-hit != 'true'
+        run: bash scripts/build-runtime.sh
+      - uses: actions/cache/save@v4
+        if: steps.runtime.outputs.cache-hit != 'true'
+        with:
+          path: .build/runtime
+          key: potato-static-8.6.18-${{ matrix.os }}-${{ runner.arch }}-v2
+      - uses: actions/cache/restore@v4
+        id: tls
+        with:
+          path: |
+            .build/runtime/lib/tcltls2.0.1
+            .build/runtime/TclTLS-LICENSE.txt
+            .build/runtime/OpenSSL-LICENSE.txt
+            .build/runtime/TLS-BUILD.txt
+          key: potato-tls-2.0.1-openssl-3.5.9-${{ matrix.os }}-${{ runner.arch }}-v2
+      - name: Build portable TclTLS and static OpenSSL
+        if: steps.tls.outputs.cache-hit != 'true'
+        run: bash scripts/build-tls.sh
+      - uses: actions/cache/save@v4
+        if: steps.tls.outputs.cache-hit != 'true'
+        with:
+          path: |
+            .build/runtime/lib/tcltls2.0.1
+            .build/runtime/TclTLS-LICENSE.txt
+            .build/runtime/OpenSSL-LICENSE.txt
+            .build/runtime/TLS-BUILD.txt
+          key: potato-tls-2.0.1-openssl-3.5.9-${{ matrix.os }}-${{ runner.arch }}-v2
+      - name: Native parser, images and complete client checks
+        timeout-minutes: 4
+        shell: bash
+        run: |
+          export TCL_LIBRARY="$PWD/.build/runtime/lib/tcl8.6"
+          export TK_LIBRARY="$PWD/.build/runtime/lib/tk8.6"
+          export POTATO_HOME="$RUNNER_TEMP/potato-test-profile"
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run -a .build/runtime/bin/wish8.6 tests/run.tcl tests/pueblo.test.tcl
+            xvfb-run -a .build/runtime/bin/wish8.6 tests/run.tcl tests/mxp.test.tcl
+            xvfb-run -a .build/runtime/bin/wish8.6 tests/run.tcl tests/client.test.tcl
+          else
+            .build/runtime/bin/wish8.6 tests/run.tcl tests/pueblo.test.tcl
+            .build/runtime/bin/wish8.6 tests/run.tcl tests/mxp.test.tcl
+            .build/runtime/bin/wish8.6 tests/run.tcl tests/client.test.tcl
+          fi
+      - name: Check portable TLS dependencies
+        run: python3 scripts/check-tls-deps.py
+      - name: Package native preview
+        # SSL is tested again after extraction, without the build runtime.
+        run: python3 scripts/package-preview.py
+      - name: Check relocated packaged client
+        timeout-minutes: 4
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run -a python3 scripts/verify-package.py
+          else
+            python3 scripts/verify-package.py
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Potato-Pueblo-${{ matrix.os }}
+          path: artifacts/*.zip
+          if-no-files-found: error
+      - name: Diagnostic workload and resource monitoring
+        timeout-minutes: 18
+        run: |
+          python3 -m venv .build/benchmark-env
+          .build/benchmark-env/bin/python -m pip install psutil==7.1.0
+          if [ "$RUNNER_OS" = Linux ]; then
+            xvfb-run -a .build/benchmark-env/bin/python scripts/benchmark.py --stress-seconds 600
+          else
+            .build/benchmark-env/bin/python scripts/benchmark.py --stress-seconds 600
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Performance-${{ matrix.os }}
+          path: artifacts/performance.json
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
+        if: always() && runner.os == 'macOS'
+        with:
+          name: Native-diagnostics-${{ matrix.os }}
+          path: artifacts/mac-package-client-sample.txt
+          if-no-files-found: ignore
+  windows:
+    runs-on: windows-latest
+    env:
+      POTATO_RUNNER_LABEL: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git make mingw-w64-x86_64-gcc mingw-w64-x86_64-python mingw-w64-x86_64-python-psutil
+      - name: Record operating system and architecture
+        shell: msys2 {0}
+        run: python scripts/report_platform.py
+      - uses: actions/cache/restore@v4
+        id: runtime
+        with:
+          path: .build/runtime
+          key: potato-static-8.6.18-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Build pinned Tcl/Tk 8.6.18
+        if: steps.runtime.outputs.cache-hit != 'true'
+        shell: msys2 {0}
+        run: bash scripts/build-runtime.sh
+      - uses: actions/cache/save@v4
+        if: steps.runtime.outputs.cache-hit != 'true'
+        with:
+          path: .build/runtime
+          key: potato-static-8.6.18-${{ runner.os }}-${{ runner.arch }}-v1
+      - name: Native parser, images and complete client checks
+        timeout-minutes: 4
+        shell: msys2 {0}
+        run: |
+          export TCL_LIBRARY="$(cygpath -m "$PWD/.build/runtime/lib/tcl8.6")"
+          export TK_LIBRARY="$(cygpath -m "$PWD/.build/runtime/lib/tk8.6")"
+          export POTATO_HOME="$(cygpath -m "$RUNNER_TEMP/potato-test-profile")"
+          .build/runtime/bin/wish86s.exe tests/run.tcl tests/pueblo.test.tcl
+          .build/runtime/bin/wish86s.exe tests/run.tcl tests/mxp.test.tcl
+          .build/runtime/bin/wish86s.exe tests/run.tcl tests/client.test.tcl
+      - name: Package native preview
+        shell: msys2 {0}
+        run: python scripts/package-preview.py
+      - name: Check relocated packaged client
+        timeout-minutes: 2
+        shell: msys2 {0}
+        run: python scripts/verify-package.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Potato-Pueblo-Windows
+          path: artifacts/*.zip
+          if-no-files-found: error
+      - name: Diagnostic workload and resource monitoring
+        timeout-minutes: 18
+        shell: msys2 {0}
+        run: python scripts/benchmark.py --stress-seconds 600
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Performance-Windows
+          path: artifacts/performance.json
+          if-no-files-found: ignore

@@ -712,6 +712,28 @@ proc ::skin::potato::inputWindows {c num} {
 
 	if { $c == [::potato::up] } {
 		$widgets(pane,btm,pane) paneconfigure $widgets(pane,btm,pane,btm) -hide $hide
+		# A saved outer height of 0/1 leaves both editors unmapped. Reserve
+		# complete text lines, using the actual font and widget borders so
+		# the minimum also works with Aqua and scaled display fonts.
+		if { [info exists ::potato::conn($c,input1)] } {
+			set input $::potato::conn($c,input1)
+			set lineHeight [expr {[font metrics [$input cget -font] -linespace] +
+				2 * ([$input cget -borderwidth] + [$input cget -highlightthickness]) + 2}]
+			foreach key {top btm} {
+				$widgets(pane,btm,pane) paneconfigure $widgets(pane,btm,pane,$key) -minsize $lineHeight
+				set savedHeight [$widgets(pane,btm,pane) panecget $widgets(pane,btm,pane,$key) -height]
+				if { [string is integer -strict $savedHeight] && $savedHeight < $lineHeight } {
+					$widgets(pane,btm,pane) paneconfigure $widgets(pane,btm,pane,$key) -height $lineHeight
+				}
+			}
+			set minimum [expr {$num * $lineHeight + ($num-1) * [$widgets(pane,btm,pane) cget -sashwidth] +
+				2 * [$widgets(pane,btm,pane) cget -borderwidth]}]
+			$widgets(pane) paneconfigure $widgets(pane,btm) -minsize $minimum
+			set savedHeight [$widgets(pane) panecget $widgets(pane,btm) -height]
+			if { [string is integer -strict $savedHeight] && $savedHeight < $minimum } {
+				$widgets(pane) paneconfigure $widgets(pane,btm) -height $minimum
+			}
+		}
 	}
 
 	return;
@@ -1699,7 +1721,9 @@ proc ::skin::potato::savePrefs {} {
 		return;
 	}
 	inputWindows [::potato::up] 2
-	update
+	# Only settle geometry before measuring. Processing arbitrary native and
+	# socket events here can keep Aqua's full update loop from returning.
+	update idletasks
 	set opts(input1height) [winfo height $widgets(pane,btm,pane,top)]
 	set opts(input2height) [winfo height $widgets(pane,btm,pane,btm)]
 	set opts(inputheights) [winfo height $widgets(pane,btm,pane)]

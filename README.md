@@ -6,3 +6,6 @@
 The latest version can be download from the [Potato website](http://www.potatomushclient.com/downloads), or [checked out from GIT](https://github.com/potatomushclient/potato/wiki/RunFromSource#git-1).
 
 Please see [the wiki](https://github.com/potatomushclient/potato/wiki) for more information.
+
+This fork adds opt-in Pueblo clickable captions, command links and inline images.
+See [preview behavior, native builds and limitations](docs/PUEBLO.md).
