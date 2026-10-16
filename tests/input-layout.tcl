@@ -64,7 +64,7 @@ set sent [expr {[lsearch -exact $::wire input-fixture-command]>=0}]
 set f [open $::env(POTATO_LAYOUT_RESULT) a]
 puts $f [list INPUT-SEND $sent failures $::failures]; close $f
 if {[info exists ::env(POTATO_ASSERT_INPUT)] && (!$sent || $::failures)} {error "Input acceptance failed: sent=$sent geometryFailures=$::failures"}
-::skin::potato::savePrefs
 ::potato::disconnect $c 0
 close $::peer
+::skin::potato::savePrefs
 destroy .
