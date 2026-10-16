@@ -14,12 +14,13 @@ with tempfile.TemporaryDirectory(prefix='potato-input-layout-') as tmp:
         with zipfile.ZipFile(archive) as z:z.extractall(folder)
     resources=next(folder.rglob('BUILD.json')).parent
     exe=resources.parent/'MacOS/PotatoPueblo' if platform.system()=='Darwin' else resources/'runtime/bin/wish86s.exe'
-    for scenario in ['fresh','collapsed']:
+    for scenario in ['fresh','collapsed','restored']:
         with Fixture() as fixture:
             label=archive.parent.name+'-'+scenario
             receipt=out/(label+'.txt')
             receipt.write_text('')
-            env=dict(os.environ,**fixture.environment(),POTATO_HOME=str(folder/scenario),
+            profile=folder/('collapsed' if scenario=='restored' else scenario)
+            env=dict(os.environ,**fixture.environment(),POTATO_HOME=str(profile),
                      POTATO_TEST_SOURCE_ROOT=str(resources),POTATO_LAYOUT_RESULT=str(receipt),
                      POTATO_TEST_RESULT=str(out/(label+'-status.txt')),
                      POTATO_LAYOUT_LABEL=label)

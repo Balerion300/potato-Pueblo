@@ -721,10 +721,18 @@ proc ::skin::potato::inputWindows {c num} {
 				2 * ([$input cget -borderwidth] + [$input cget -highlightthickness]) + 2}]
 			foreach key {top btm} {
 				$widgets(pane,btm,pane) paneconfigure $widgets(pane,btm,pane,$key) -minsize $lineHeight
+				set savedHeight [$widgets(pane,btm,pane) panecget $widgets(pane,btm,pane,$key) -height]
+				if { [string is integer -strict $savedHeight] && $savedHeight < $lineHeight } {
+					$widgets(pane,btm,pane) paneconfigure $widgets(pane,btm,pane,$key) -height $lineHeight
+				}
 			}
 			set minimum [expr {$num * $lineHeight + ($num-1) * [$widgets(pane,btm,pane) cget -sashwidth] +
 				2 * [$widgets(pane,btm,pane) cget -borderwidth]}]
 			$widgets(pane) paneconfigure $widgets(pane,btm) -minsize $minimum
+			set savedHeight [$widgets(pane) panecget $widgets(pane,btm) -height]
+			if { [string is integer -strict $savedHeight] && $savedHeight < $minimum } {
+				$widgets(pane) paneconfigure $widgets(pane,btm) -height $minimum
+			}
 		}
 	}
 
