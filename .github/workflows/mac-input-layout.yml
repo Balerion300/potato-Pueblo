@@ -16,8 +16,32 @@ jobs:
           mkdir -p released
           curl -fL 'https://github.com/Balerion300/potato-Pueblo/releases/download/preview-2026-10-16-mac-signature-fix/Potato-Pueblo-Preview-Darwin-arm64.zip' -o released/preview.zip
           python3 scripts/check-input-layout.py released/preview.zip
+      - uses: actions/cache/restore@v4
+        with:
+          path: .build/runtime
+          key: potato-static-8.6.18-macos-26-ARM64-v2
+          fail-on-cache-miss: true
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            .build/runtime/lib/tcltls2.0.1
+            .build/runtime/TclTLS-LICENSE.txt
+            .build/runtime/OpenSSL-LICENSE.txt
+            .build/runtime/TLS-BUILD.txt
+          key: potato-tls-2.0.1-openssl-3.5.9-macos-26-ARM64-v2
+          fail-on-cache-miss: true
+      - name: Package repaired input layout
+        run: python3 scripts/package-preview.py
+      - name: Check repaired default and collapsed input layouts
+        env:
+          POTATO_ASSERT_INPUT: '1'
+        run: python3 scripts/check-input-layout.py artifacts/Potato-Pueblo-Preview-Darwin-arm64.zip
+      - name: Check extracted signatures, startup, protocol and SSL
+        run: python3 scripts/verify-package.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: Mac-input-layout
-          path: artifacts/input-layout/*
+          path: |
+            artifacts/input-layout/*
+            artifacts/*.zip

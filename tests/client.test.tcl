@@ -132,6 +132,9 @@ set c $::potato::potato(up)
 waitFor {[lsearch -exact $::wire {PUEBLOCLIENT 1.10}]>=0}
 waitFor {[dict get $::potato::pueblo::state($c) active]}
 set t $::potato::conn($c,textWidget)
+testPump
+set editor $::potato::conn($c,input1)
+assert {[winfo ismapped $editor] && [winfo height $editor] >= [font metrics [$editor cget -font] -linespace]} "default startup has a visible usable input editor"
 wm state . normal
 wm geometry . 800x500
 update idletasks

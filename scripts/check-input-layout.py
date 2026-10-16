@@ -20,7 +20,8 @@ with tempfile.TemporaryDirectory(prefix='potato-input-layout-') as tmp:
             receipt=out/(label+'.txt')
             receipt.write_text('')
             env=dict(os.environ,**fixture.environment(),POTATO_HOME=str(folder/scenario),
-                     POTATO_TEST_SOURCE_ROOT=str(resources),POTATO_TEST_RESULT=str(receipt),
+                     POTATO_TEST_SOURCE_ROOT=str(resources),POTATO_LAYOUT_RESULT=str(receipt),
+                     POTATO_TEST_RESULT=str(out/(label+'-status.txt')),
                      POTATO_LAYOUT_LABEL=label)
             if scenario=='collapsed':env['POTATO_COLLAPSED_INPUT']='1'
             if platform.system()!='Darwin':

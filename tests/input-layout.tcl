@@ -25,13 +25,13 @@ proc record {stage c} {
         [winfo height $i]>=$fontHeight &&
         [winfo rooty $i]+$fontHeight <= [winfo rooty .]+[winfo height .]}]
     if {!$usable} {incr ::failures}
-    set f [open $::env(POTATO_TEST_RESULT) a]
+    set f [open $::env(POTATO_LAYOUT_RESULT) a]
     puts $f [list $stage usable $usable input [winfo geometry $i] mapped [winfo ismapped $i] \
         fontHeight $fontHeight window [wm geometry .] pane [winfo geometry $outer] \
         bottom [winfo geometry $bottom] options [$outer paneconfigure $bottom]]
     close $f
     if {[tk windowingsystem] eq "aqua" && $stage eq "connected-default"} {
-        catch {exec screencapture -x [file join [file dirname $::env(POTATO_TEST_RESULT)] input-$::env(POTATO_LAYOUT_LABEL).png]}
+        catch {exec screencapture -x [file join [file dirname $::env(POTATO_LAYOUT_RESULT)] input-$::env(POTATO_LAYOUT_LABEL).png]}
     }
 }
 set ::peer [socket 127.0.0.1 $::env(POTATO_FIXTURE_CONTROL_PORT)]
@@ -61,9 +61,9 @@ event generate $i <KeyPress-Return>
 set limit [expr {[clock milliseconds]+3000}]
 while {[lsearch -exact $::wire input-fixture-command]<0 && [clock milliseconds]<$limit} {pump}
 set sent [expr {[lsearch -exact $::wire input-fixture-command]>=0}]
-set f [open $::env(POTATO_TEST_RESULT) a]
+set f [open $::env(POTATO_LAYOUT_RESULT) a]
 puts $f [list INPUT-SEND $sent failures $::failures]; close $f
-if {!$sent || ([info exists ::env(POTATO_ASSERT_INPUT)] && $::failures)} {error "Input acceptance failed: sent=$sent geometryFailures=$::failures"}
+if {[info exists ::env(POTATO_ASSERT_INPUT)] && (!$sent || $::failures)} {error "Input acceptance failed: sent=$sent geometryFailures=$::failures"}
 ::potato::disconnect $c 0
 close $::peer
 destroy .
